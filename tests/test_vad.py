@@ -8,65 +8,9 @@ from pathlib import Path
 
 import pytest
 
+from helpers import filtergraph_from, patch_probe_media, video_info, write_basic_project
 from vided import trimmer, vad
-from vided.ffmpeg import VideoInfo
-from vided.project import write_json
 from vided.time_ranges import TimeRange
-
-
-def _video_info(path: Path, *, duration: float = 8.0, has_audio: bool = True) -> VideoInfo:
-    return VideoInfo(
-        path=path,
-        width=1920,
-        height=1080,
-        duration=duration,
-        fps=30.0,
-        video_codec="h264",
-        audio_codec="aac" if has_audio else None,
-        has_audio=has_audio,
-        audio_sample_rate=48000 if has_audio else None,
-        audio_channels=2 if has_audio else None,
-    )
-
-
-def _project(tmp_path: Path) -> Path:
-    project = tmp_path / "project"
-    (project / "input").mkdir(parents=True)
-    (project / "work").mkdir()
-    (project / "input" / "original.mp4").write_bytes(b"")
-    write_json(
-        project / "project.json",
-        {
-            "original_path": "input/original.mp4",
-            "trimmed_path": "work/trimmed.mp4",
-            "trim": {
-                "detector": "audio",
-                "mode": "hybrid",
-                "margin": "0.2s",
-                "smooth": "0.2s,0.1s",
-                "audio_threshold": 0.04,
-                "long_silence_min_seconds": 1.5,
-                "silent_speed": 8.0,
-                "mute_silent_audio": True,
-                "silero": {
-                    "threshold": 0.5,
-                    "min_speech_duration_ms": 250,
-                    "min_silence_duration_ms": 300,
-                    "speech_pad_ms": 150,
-                    "merge_speech_gap_seconds": 0.25,
-                    "manual_keep_ranges": [{"start": 5.0, "end": 6.0}],
-                },
-            },
-            "render": {
-                "video_codec": "libx264",
-                "crf": 16,
-                "preset": "medium",
-                "pixel_format": "yuv420p",
-                "audio_bitrate": "192k",
-            },
-        },
-    )
-    return project
 
 
 def test_build_vad_report_merges_speech_and_manual_keep_ranges(tmp_path) -> None:
@@ -82,7 +26,7 @@ def test_build_vad_report_merges_speech_and_manual_keep_ranges(tmp_path) -> None
         project_root=project,
         source_video=source,
         audio_source=audio,
-        media_info=_video_info(source),
+        media_info=video_info(source, duration=8.0, fps=30.0),
         settings=settings,
         speech_ranges=[
             TimeRange(start=1.0, end=2.0),
@@ -110,7 +54,7 @@ def test_build_vad_report_keeps_full_video_when_no_speech_is_detected(tmp_path) 
         project_root=project,
         source_video=source,
         audio_source=None,
-        media_info=_video_info(source),
+        media_info=video_info(source, duration=8.0, fps=30.0),
         settings=vad.VadSettings(),
         speech_ranges=[],
     )
@@ -201,10 +145,15 @@ def test_speech_ranges_from_probabilities_uses_thresholds() -> None:
 
 
 def test_vad_command_writes_vad_files_but_not_trimmed_video(tmp_path, monkeypatch) -> None:
-    project = _project(tmp_path)
+    project = write_basic_project(
+        tmp_path / "project",
+        trim_overrides={
+            "silero": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
+        },
+    )
     source = project / "input" / "original.mp4"
 
-    monkeypatch.setattr(vad, "probe_media", lambda path: _video_info(path))
+    patch_probe_media(monkeypatch, vad, duration=8.0, fps=30.0)
 
     def fake_extract(_: Path, output: Path) -> Path:
         output.write_bytes(b"wav")
@@ -229,8 +178,13 @@ def test_vad_command_writes_vad_files_but_not_trimmed_video(tmp_path, monkeypatc
 
 
 def test_silero_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> None:
-    project = _project(tmp_path)
-    monkeypatch.setattr(trimmer, "probe_media", lambda path: _video_info(path, duration=10.0))
+    project = write_basic_project(
+        tmp_path / "project",
+        trim_overrides={
+            "silero": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
+        },
+    )
+    patch_probe_media(monkeypatch, trimmer, duration=10.0, fps=30.0)
     monkeypatch.setattr(
         trimmer,
         "load_or_create_vad_report",
@@ -241,7 +195,7 @@ def test_silero_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> 
     )
 
     cmd = trimmer.build_ffmpeg_trim_command(project, detector="silero")
-    graph = cmd[cmd.index("-filter_complex") + 1]
+    graph = filtergraph_from(cmd)
 
     assert "trim=start=0:end=2,setpts=(PTS-STARTPTS)/1[v0]" in graph
     assert "trim=start=2:end=10,setpts=(PTS-STARTPTS)/8[v1]" in graph

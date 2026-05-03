@@ -5,25 +5,16 @@ import struct
 
 from PIL import Image
 
+from helpers import filtergraph_from, patch_probe_media, video_info, write_basic_project
 from vided import trimmer
-from vided.project import default_project_config, write_json
-from vided.ffmpeg import VideoInfo
+from vided.project import default_project_config
 
 
 def test_default_project_config_uses_hybrid_trim_mode() -> None:
     cfg = default_project_config(
         original_path=Path("/tmp/project/input/original.mp4"),
         source_path=Path("/tmp/source.mp4"),
-        source_info=VideoInfo(
-            path=Path("/tmp/source.mp4"),
-            width=1920,
-            height=1080,
-            duration=12.0,
-            fps=60.0,
-            video_codec="h264",
-            audio_codec="aac",
-            has_audio=True,
-        ),
+        source_info=video_info(Path("/tmp/source.mp4"), duration=12.0),
         frame_interval=1.0,
     )
 
@@ -95,48 +86,8 @@ def test_pcm_audio_levels_chunks_peak_amplitude_across_channels() -> None:
 
 
 def test_ffmpeg_trim_command_uses_concat_segments(tmp_path, monkeypatch) -> None:
-    project = tmp_path / "project"
-    (project / "input").mkdir(parents=True)
-    (project / "work").mkdir()
-    original = project / "input" / "original.mp4"
-    original.write_bytes(b"")
-    write_json(
-        project / "project.json",
-        {
-            "original_path": "input/original.mp4",
-            "trimmed_path": "work/trimmed.mp4",
-            "trim": {
-                "mode": "hybrid",
-                "margin": "0.2s",
-                "smooth": "0.2s,0.1s",
-                "audio_threshold": 0.04,
-                "long_silence_min_seconds": 1.5,
-                "silent_speed": 8.0,
-                "mute_silent_audio": True,
-            },
-            "render": {
-                "video_codec": "libx264",
-                "crf": 16,
-                "preset": "medium",
-                "pixel_format": "yuv420p",
-                "audio_bitrate": "192k",
-            },
-        },
-    )
-    monkeypatch.setattr(
-        trimmer,
-        "probe_media",
-        lambda path: VideoInfo(
-            path=path,
-            width=1920,
-            height=1080,
-            duration=10.0,
-            fps=60.0,
-            video_codec="h264",
-            audio_codec="aac",
-            has_audio=True,
-        ),
-    )
+    project = write_basic_project(tmp_path / "project")
+    patch_probe_media(monkeypatch, trimmer)
     monkeypatch.setattr(
         trimmer,
         "_trim_segments",
@@ -147,7 +98,7 @@ def test_ffmpeg_trim_command_uses_concat_segments(tmp_path, monkeypatch) -> None
     )
 
     cmd = trimmer.build_ffmpeg_trim_command(project)
-    graph = cmd[cmd.index("-filter_complex") + 1]
+    graph = filtergraph_from(cmd)
 
     assert "trim=start=0:end=2,setpts=(PTS-STARTPTS)/1[v0]" in graph
     assert "trim=start=3:end=7,setpts=(PTS-STARTPTS)/8[v1]" in graph
@@ -158,53 +109,17 @@ def test_ffmpeg_trim_command_uses_concat_segments(tmp_path, monkeypatch) -> None
 def test_ffmpeg_trim_command_overlays_speed_indicator_on_sped_segments(
     tmp_path, monkeypatch
 ) -> None:
-    project = tmp_path / "project"
-    (project / "input").mkdir(parents=True)
-    (project / "work").mkdir()
-    original = project / "input" / "original.mp4"
-    original.write_bytes(b"")
-    write_json(
-        project / "project.json",
-        {
-            "original_path": "input/original.mp4",
-            "trimmed_path": "work/trimmed.mp4",
-            "trim": {
-                "mode": "hybrid",
-                "margin": "0.2s",
-                "smooth": "0.2s,0.1s",
-                "audio_threshold": 0.04,
-                "long_silence_min_seconds": 1.5,
-                "silent_speed": 8.0,
-                "mute_silent_audio": True,
-                "speed_indicator": {
-                    "enabled": True,
-                    "corner": "bottom-left",
-                    "style": "light",
-                },
-            },
-            "render": {
-                "video_codec": "libx264",
-                "crf": 16,
-                "preset": "medium",
-                "pixel_format": "yuv420p",
-                "audio_bitrate": "192k",
+    project = write_basic_project(
+        tmp_path / "project",
+        trim_overrides={
+            "speed_indicator": {
+                "enabled": True,
+                "corner": "bottom-left",
+                "style": "light",
             },
         },
     )
-    monkeypatch.setattr(
-        trimmer,
-        "probe_media",
-        lambda path: VideoInfo(
-            path=path,
-            width=1920,
-            height=1080,
-            duration=20.0,
-            fps=60.0,
-            video_codec="h264",
-            audio_codec="aac",
-            has_audio=True,
-        ),
-    )
+    patch_probe_media(monkeypatch, trimmer, duration=20.0)
     monkeypatch.setattr(
         trimmer,
         "_trim_segments",
@@ -215,7 +130,7 @@ def test_ffmpeg_trim_command_overlays_speed_indicator_on_sped_segments(
     )
 
     cmd = trimmer.build_ffmpeg_trim_command(project)
-    graph = cmd[cmd.index("-filter_complex") + 1]
+    graph = filtergraph_from(cmd)
     badge = project / "work" / "speed-indicator-8x-light.png"
 
     assert cmd[cmd.index("-loop") + 1] == "1"
@@ -233,52 +148,16 @@ def test_ffmpeg_trim_command_overlays_speed_indicator_on_sped_segments(
 def test_ffmpeg_trim_command_skips_speed_indicator_for_short_sped_segments(
     tmp_path, monkeypatch
 ) -> None:
-    project = tmp_path / "project"
-    (project / "input").mkdir(parents=True)
-    (project / "work").mkdir()
-    original = project / "input" / "original.mp4"
-    original.write_bytes(b"")
-    write_json(
-        project / "project.json",
-        {
-            "original_path": "input/original.mp4",
-            "trimmed_path": "work/trimmed.mp4",
-            "trim": {
-                "mode": "hybrid",
-                "margin": "0.2s",
-                "smooth": "0.2s,0.1s",
-                "audio_threshold": 0.04,
-                "long_silence_min_seconds": 1.5,
-                "silent_speed": 8.0,
-                "mute_silent_audio": True,
-                "speed_indicator": {
-                    "enabled": True,
-                    "min_display_seconds": 1.0,
-                },
-            },
-            "render": {
-                "video_codec": "libx264",
-                "crf": 16,
-                "preset": "medium",
-                "pixel_format": "yuv420p",
-                "audio_bitrate": "192k",
+    project = write_basic_project(
+        tmp_path / "project",
+        trim_overrides={
+            "speed_indicator": {
+                "enabled": True,
+                "min_display_seconds": 1.0,
             },
         },
     )
-    monkeypatch.setattr(
-        trimmer,
-        "probe_media",
-        lambda path: VideoInfo(
-            path=path,
-            width=1920,
-            height=1080,
-            duration=10.0,
-            fps=60.0,
-            video_codec="h264",
-            audio_codec="aac",
-            has_audio=True,
-        ),
-    )
+    patch_probe_media(monkeypatch, trimmer)
     monkeypatch.setattr(
         trimmer,
         "_trim_segments",
@@ -289,7 +168,7 @@ def test_ffmpeg_trim_command_skips_speed_indicator_for_short_sped_segments(
     )
 
     cmd = trimmer.build_ffmpeg_trim_command(project)
-    graph = cmd[cmd.index("-filter_complex") + 1]
+    graph = filtergraph_from(cmd)
 
     assert "-loop" not in cmd
     assert "overlay=" not in graph
@@ -299,45 +178,17 @@ def test_ffmpeg_trim_command_skips_speed_indicator_for_short_sped_segments(
 def test_ffmpeg_trim_command_skips_speed_indicator_without_sped_segments(
     tmp_path, monkeypatch
 ) -> None:
-    project = tmp_path / "project"
-    (project / "input").mkdir(parents=True)
-    (project / "work").mkdir()
-    original = project / "input" / "original.mp4"
-    original.write_bytes(b"")
-    write_json(
-        project / "project.json",
-        {
-            "original_path": "input/original.mp4",
-            "trimmed_path": "work/trimmed.mp4",
-            "trim": {
-                "mode": "keep",
-                "speed_indicator": {"enabled": True},
-            },
-            "render": {
-                "video_codec": "libx264",
-                "crf": 16,
-                "preset": "medium",
-                "pixel_format": "yuv420p",
-            },
+    project = write_basic_project(
+        tmp_path / "project",
+        trim_overrides={
+            "mode": "keep",
+            "speed_indicator": {"enabled": True},
         },
     )
-    monkeypatch.setattr(
-        trimmer,
-        "probe_media",
-        lambda path: VideoInfo(
-            path=path,
-            width=1920,
-            height=1080,
-            duration=10.0,
-            fps=60.0,
-            video_codec="h264",
-            audio_codec="aac",
-            has_audio=True,
-        ),
-    )
+    patch_probe_media(monkeypatch, trimmer)
 
     cmd = trimmer.build_ffmpeg_trim_command(project)
-    graph = cmd[cmd.index("-filter_complex") + 1]
+    graph = filtergraph_from(cmd)
 
     assert "-loop" not in cmd
     assert "overlay=" not in graph
@@ -366,15 +217,10 @@ def test_activity_ranges_apply_margin_and_smoothing(tmp_path, monkeypatch) -> No
 
     ranges = trimmer._activity_ranges(
         source,
-        media_info=VideoInfo(
-            path=source,
-            width=1920,
-            height=1080,
+        media_info=video_info(
+            source,
             duration=1.0,
             fps=10.0,
-            video_codec="h264",
-            audio_codec="aac",
-            has_audio=True,
             audio_sample_rate=10,
             audio_channels=1,
         ),
@@ -397,14 +243,10 @@ def test_no_audio_trim_segments_keep_whole_video(tmp_path) -> None:
 
     segments = trimmer._trim_segments(
         source,
-        media_info=VideoInfo(
-            path=source,
-            width=1920,
-            height=1080,
+        media_info=video_info(
+            source,
             duration=10.0,
             fps=30.0,
-            video_codec="h264",
-            audio_codec=None,
             has_audio=False,
         ),
         duration=10.0,

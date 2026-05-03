@@ -1,35 +1,14 @@
 from __future__ import annotations
 
-from http.server import ThreadingHTTPServer
 import json
 from pathlib import Path
-import shutil
-import threading
 from urllib.request import Request, urlopen
 
 import pytest
 
 from vided.ffmpeg import probe_media
-from vided.frames import generate_frames
 from vided.project import create_project, paths
 from vided.trimmer import run_trim
-from vided.ui_server import make_handler
-
-
-FIXTURE = Path(__file__).parent / "fixtures" / "media" / "realistic-speech-gaps-short.mp4"
-
-
-def _require_tool(name: str) -> None:
-    if shutil.which(name) is None:
-        pytest.skip(f"{name} is required for e2e tests")
-
-
-def _require_realistic_fixture() -> Path:
-    if not FIXTURE.exists():
-        pytest.skip(f"fixture is missing: {FIXTURE}")
-    if FIXTURE.stat().st_size < 1024:
-        pytest.skip(f"fixture appears to be a Git LFS pointer: {FIXTURE}")
-    return FIXTURE
 
 
 def _read_json(url: str) -> dict:
@@ -38,16 +17,18 @@ def _read_json(url: str) -> dict:
 
 
 @pytest.mark.e2e
-def test_realistic_fixture_compares_default_and_vad_trim(tmp_path: Path) -> None:
-    _require_tool("ffmpeg")
-    _require_tool("ffprobe")
+def test_realistic_fixture_compares_default_and_vad_trim(
+    tmp_path: Path,
+    realistic_short_fixture: Path,
+    require_tools,
+) -> None:
+    require_tools("ffmpeg", "ffprobe")
     pytest.importorskip("onnxruntime")
-    source = _require_realistic_fixture()
 
     durations: dict[str, float] = {}
     for detector in ("audio", "silero"):
         project = tmp_path / detector
-        create_project(source, project, copy_input=False)
+        create_project(realistic_short_fixture, project, copy_input=False)
         output = run_trim(project, detector=detector, overwrite=True)
 
         assert output.exists()
@@ -63,29 +44,14 @@ def test_realistic_fixture_compares_default_and_vad_trim(tmp_path: Path) -> None
 
 
 @pytest.mark.e2e
-def test_realistic_fixture_generates_frames_and_serves_ui_api(tmp_path: Path) -> None:
-    _require_tool("ffmpeg")
-    _require_tool("ffprobe")
-    source = _require_realistic_fixture()
+def test_realistic_fixture_generates_frames_and_serves_ui_api(
+    prepared_e2e_project,
+    served_ui,
+) -> None:
+    project = prepared_e2e_project.root
+    frames = prepared_e2e_project.frames
 
-    project = tmp_path / "ui-project"
-    create_project(source, project, copy_input=False)
-    run_trim(project, overwrite=True)
-    frames_json = generate_frames(
-        project,
-        interval_seconds=5.0,
-        thumbnail_width=160,
-        overwrite=True,
-    )
-    frames = json.loads(frames_json.read_text(encoding="utf-8"))["frames"]
-    assert len(frames) >= 3
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(project))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    base_url = f"http://127.0.0.1:{server.server_address[1]}"
-
-    try:
+    with served_ui(project) as base_url:
         assert _read_json(f"{base_url}/api/health") == {"ok": True}
         project_payload = _read_json(f"{base_url}/api/project")
         assert len(project_payload["frames"]["frames"]) == len(frames)
@@ -116,7 +82,3 @@ def test_realistic_fixture_generates_frames_and_serves_ui_api(tmp_path: Path) ->
 
         redactions = _read_json(f"{base_url}/api/redactions")
         assert redactions["redactions"][0]["id"] == "e2e-redaction"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
