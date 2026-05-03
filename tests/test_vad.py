@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from helpers import filtergraph_from, patch_probe_media, video_info, write_basic_project
+from helpers import (
+    build_trim_command_for_test,
+    filtergraph_from,
+    patch_probe_media,
+    video_info,
+    write_basic_project,
+)
 from vided import trimmer, vad
 from vided.time_ranges import TimeRange
 
@@ -194,7 +200,10 @@ def test_silero_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> 
         },
     )
 
-    cmd = trimmer.build_ffmpeg_trim_command(project, detector="silero-vad")
+    cmd = build_trim_command_for_test(
+        project,
+        options=trimmer.TrimOptions(detector="silero-vad"),
+    )
     graph = filtergraph_from(cmd)
 
     assert "trim=start=0:end=2,setpts=(PTS-STARTPTS)/1[v0]" in graph
@@ -207,7 +216,10 @@ def test_silero_trim_command_preview_does_not_create_vad_report(tmp_path, monkey
     patch_probe_media(monkeypatch, trimmer, duration=10.0, fps=30.0)
 
     with pytest.raises(vad.ProjectError, match="VAD ranges not found or stale"):
-        trimmer.build_ffmpeg_trim_command(project, detector="silero-vad")
+        build_trim_command_for_test(
+            project,
+            options=trimmer.TrimOptions(detector="silero-vad"),
+        )
 
     assert not (project / "work" / "vad_ranges.json").exists()
     assert not (project / "work" / "vad.wav").exists()

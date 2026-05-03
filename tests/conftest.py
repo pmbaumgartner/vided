@@ -14,7 +14,7 @@ import pytest
 from vided.ffmpeg import VideoInfo, probe_media
 from vided.frames import generate_frames
 from vided.project import create_project
-from vided.trimmer import run_trim
+from vided.trimmer import plan_trim, run_trim_plan
 from vided.ui_server import make_handler
 
 
@@ -79,7 +79,7 @@ def prepared_e2e_project(
 
     project = tmp_path / "e2e-project"
     create_project(realistic_short_fixture, project, copy_input=False)
-    trimmed = run_trim(project, overwrite=True)
+    trimmed = run_trim_plan(plan_trim(project), overwrite=True).path
     trimmed_info = probe_media(trimmed)
     frames_json = generate_frames(
         project,

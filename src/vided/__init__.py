@@ -34,10 +34,8 @@ from .trimmer import (
     TrimPlan,
     TrimSegment,
     VadOptions,
-    build_ffmpeg_trim_command,
     build_trim_command,
     plan_trim,
-    run_trim,
     run_trim_plan,
 )
 from .vad import VadSettings, normalize_detector, run_vad_detection
@@ -63,7 +61,6 @@ __all__ = [
     "VidedError",
     "VideoInfo",
     "__version__",
-    "build_ffmpeg_trim_command",
     "build_trim_command",
     "create_project",
     "generate_frames",
@@ -76,7 +73,6 @@ __all__ = [
     "read_json",
     "render_project",
     "render_redactions",
-    "run_trim",
     "run_trim_plan",
     "run_vad_detection",
     "save_project",

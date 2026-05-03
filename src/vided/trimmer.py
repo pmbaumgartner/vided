@@ -10,7 +10,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFont
 
 from .errors import ValidationError
-from .ffmpeg import VideoInfo, ensure_tool, probe_media, run_binary_command, run_command
+from .ffmpeg import VideoInfo, ensure_tool, probe_media, run_command
 from .project import (
     default_redactions,
     load_project,
@@ -398,7 +398,7 @@ def _read_audio_levels(source: Path, *, media_info: VideoInfo, timebase_fps: flo
     if not media_info.audio_sample_rate or not media_info.audio_channels:
         raise ValueError(f"Audio stream metadata is incomplete for {source}")
 
-    pcm = run_binary_command(
+    result = run_command(
         [
             "ffmpeg",
             "-hide_banner",
@@ -416,8 +416,10 @@ def _read_audio_levels(source: Path, *, media_info: VideoInfo, timebase_fps: flo
             "-c:a",
             "pcm_s16le",
             "-",
-        ]
+        ],
+        output="bytes",
     )
+    pcm = result.stdout
     return _pcm_audio_levels(
         pcm,
         sample_rate=media_info.audio_sample_rate,
@@ -691,45 +693,6 @@ def _build_ffmpeg_filtergraph(
     return ";".join(parts)
 
 
-def _trim_options_from_kwargs(
-    *,
-    detector: str | None = None,
-    mode: str | None = None,
-    margin: str | None = None,
-    smooth: str | None = None,
-    silent_speed: float | None = None,
-    mute_silent_audio: bool | None = None,
-    vad_threshold: float | None = None,
-    vad_min_speech_duration_ms: int | None = None,
-    vad_min_silence_duration_ms: int | None = None,
-    vad_speech_pad_ms: int | None = None,
-    vad_merge_speech_gap_seconds: float | None = None,
-    speed_indicator: bool | None = None,
-    speed_indicator_corner: str | None = None,
-    speed_indicator_style: str | None = None,
-    speed_indicator_min_seconds: float | None = None,
-) -> TrimOptions:
-    return TrimOptions(
-        detector=detector,
-        mode=mode,
-        margin=margin,
-        smooth=smooth,
-        silent_speed=silent_speed,
-        mute_silent_audio=mute_silent_audio,
-        vad=VadOptions(
-            threshold=vad_threshold,
-            min_speech_duration_ms=vad_min_speech_duration_ms,
-            min_silence_duration_ms=vad_min_silence_duration_ms,
-            speech_pad_ms=vad_speech_pad_ms,
-            merge_speech_gap_seconds=vad_merge_speech_gap_seconds,
-        ),
-        speed_indicator=speed_indicator,
-        speed_indicator_corner=speed_indicator_corner,
-        speed_indicator_style=speed_indicator_style,
-        speed_indicator_min_display_seconds=speed_indicator_min_seconds,
-    )
-
-
 def plan_trim(
     project_root: Path,
     *,
@@ -906,51 +869,6 @@ def build_trim_command(plan: TrimPlan) -> list[str]:
     return cmd
 
 
-def build_ffmpeg_trim_command(
-    project_root: Path,
-    *,
-    detector: str | None = None,
-    mode: str | None = None,
-    margin: str | None = None,
-    smooth: str | None = None,
-    silent_speed: float | None = None,
-    mute_silent_audio: bool | None = None,
-    vad_threshold: float | None = None,
-    vad_min_speech_duration_ms: int | None = None,
-    vad_min_silence_duration_ms: int | None = None,
-    vad_speech_pad_ms: int | None = None,
-    vad_merge_speech_gap_seconds: float | None = None,
-    speed_indicator: bool | None = None,
-    speed_indicator_corner: str | None = None,
-    speed_indicator_style: str | None = None,
-    speed_indicator_min_seconds: float | None = None,
-    allow_vad_detection: bool = False,
-) -> list[str]:
-    options = _trim_options_from_kwargs(
-        detector=detector,
-        mode=mode,
-        margin=margin,
-        smooth=smooth,
-        silent_speed=silent_speed,
-        mute_silent_audio=mute_silent_audio,
-        vad_threshold=vad_threshold,
-        vad_min_speech_duration_ms=vad_min_speech_duration_ms,
-        vad_min_silence_duration_ms=vad_min_silence_duration_ms,
-        vad_speech_pad_ms=vad_speech_pad_ms,
-        vad_merge_speech_gap_seconds=vad_merge_speech_gap_seconds,
-        speed_indicator=speed_indicator,
-        speed_indicator_corner=speed_indicator_corner,
-        speed_indicator_style=speed_indicator_style,
-        speed_indicator_min_seconds=speed_indicator_min_seconds,
-    )
-    plan = plan_trim(
-        project_root,
-        options=options,
-        allow_vad_detection=allow_vad_detection,
-    )
-    return build_trim_command(plan)
-
-
 def _write_trim_metadata(plan: TrimPlan) -> None:
     info = probe_media(plan.output)
     cfg = dict(plan.config)
@@ -1012,46 +930,3 @@ def run_trim_plan(
     if not dry_run:
         _write_trim_metadata(plan)
     return OperationResult(path=plan.output, command=cmd, dry_run=dry_run, wrote_files=not dry_run)
-
-
-def run_trim(
-    project_root: Path,
-    *,
-    detector: str | None = None,
-    mode: str | None = None,
-    margin: str | None = None,
-    smooth: str | None = None,
-    silent_speed: float | None = None,
-    mute_silent_audio: bool | None = None,
-    vad_threshold: float | None = None,
-    vad_min_speech_duration_ms: int | None = None,
-    vad_min_silence_duration_ms: int | None = None,
-    vad_speech_pad_ms: int | None = None,
-    vad_merge_speech_gap_seconds: float | None = None,
-    speed_indicator: bool | None = None,
-    speed_indicator_corner: str | None = None,
-    speed_indicator_style: str | None = None,
-    speed_indicator_min_seconds: float | None = None,
-    overwrite: bool = False,
-    dry_run: bool = False,
-) -> Path:
-    options = _trim_options_from_kwargs(
-        detector=detector,
-        mode=mode,
-        margin=margin,
-        smooth=smooth,
-        silent_speed=silent_speed,
-        mute_silent_audio=mute_silent_audio,
-        vad_threshold=vad_threshold,
-        vad_min_speech_duration_ms=vad_min_speech_duration_ms,
-        vad_min_silence_duration_ms=vad_min_silence_duration_ms,
-        vad_speech_pad_ms=vad_speech_pad_ms,
-        vad_merge_speech_gap_seconds=vad_merge_speech_gap_seconds,
-        speed_indicator=speed_indicator,
-        speed_indicator_corner=speed_indicator_corner,
-        speed_indicator_style=speed_indicator_style,
-        speed_indicator_min_seconds=speed_indicator_min_seconds,
-    )
-    plan = plan_trim(project_root, options=options, allow_vad_detection=not dry_run)
-    result = run_trim_plan(plan, overwrite=overwrite, dry_run=dry_run)
-    return result.path

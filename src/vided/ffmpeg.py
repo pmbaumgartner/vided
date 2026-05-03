@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 
 from .errors import ExternalToolError
 
@@ -49,54 +49,76 @@ def ensure_tool(name: str) -> str:
     return resolved
 
 
+@overload
 def run_command(
     argv: list[str],
     *,
     cwd: Path | None = None,
-    capture: bool = False,
+    output: Literal["none"] = "none",
     dry_run: bool = False,
-) -> subprocess.CompletedProcess[str]:
-    """Run an external command with predictable text handling."""
+) -> subprocess.CompletedProcess[str]: ...
+
+
+@overload
+def run_command(
+    argv: list[str],
+    *,
+    cwd: Path | None = None,
+    output: Literal["text"],
+    dry_run: bool = False,
+) -> subprocess.CompletedProcess[str]: ...
+
+
+@overload
+def run_command(
+    argv: list[str],
+    *,
+    cwd: Path | None = None,
+    output: Literal["bytes"],
+    dry_run: bool = False,
+) -> subprocess.CompletedProcess[bytes]: ...
+
+
+def run_command(
+    argv: list[str],
+    *,
+    cwd: Path | None = None,
+    output: Literal["none", "text", "bytes"] = "none",
+    dry_run: bool = False,
+) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
+    """Run an external command with predictable output and error handling."""
 
     printable = " ".join(argv)
     if dry_run:
+        if output != "none":
+            raise ValueError("dry_run is only supported when output='none'")
         print(f"[dry-run] {printable}")
         return subprocess.CompletedProcess(argv, 0, "", "")
 
+    text = output != "bytes"
+    capture_output = output != "none"
     try:
         return subprocess.run(
             argv,
             cwd=str(cwd) if cwd else None,
             check=True,
-            text=True,
-            stdout=subprocess.PIPE if capture else None,
-            stderr=subprocess.PIPE if capture else None,
+            text=text,
+            stdout=subprocess.PIPE if capture_output else None,
+            stderr=subprocess.PIPE if capture_output else None,
         )
     except subprocess.CalledProcessError as exc:
-        stderr = exc.stderr or ""
-        stdout = exc.stdout or ""
+        stderr = _command_output_text(exc.stderr)
+        stdout = _command_output_text(exc.stdout)
         details = "\n".join(part for part in [stdout, stderr] if part.strip())
         raise ToolError(f"Command failed: {printable}\n{details}".rstrip()) from exc
 
 
-def run_binary_command(argv: list[str], *, cwd: Path | None = None) -> bytes:
-    """Run a command that returns binary stdout."""
-
-    printable = " ".join(argv)
-    try:
-        result = subprocess.run(
-            argv,
-            cwd=str(cwd) if cwd else None,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or b"").decode(errors="replace")
-        stdout = (exc.stdout or b"").decode(errors="replace")
-        details = "\n".join(part for part in [stdout, stderr] if part.strip())
-        raise ToolError(f"Command failed: {printable}\n{details}".rstrip()) from exc
-    return result.stdout
+def _command_output_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
 
 
 def _parse_fraction(value: str | None) -> float | None:
@@ -132,7 +154,7 @@ def probe_media(path: Path) -> VideoInfo:
             "-show_streams",
             str(path),
         ],
-        capture=True,
+        output="text",
     )
     data = json.loads(result.stdout)
     streams = data.get("streams", [])

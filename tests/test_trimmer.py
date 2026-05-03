@@ -5,7 +5,13 @@ import struct
 
 from PIL import Image
 
-from helpers import filtergraph_from, patch_probe_media, video_info, write_basic_project
+from helpers import (
+    build_trim_command_for_test,
+    filtergraph_from,
+    patch_probe_media,
+    video_info,
+    write_basic_project,
+)
 from vided import trimmer
 from vided.project import default_project_config
 
@@ -97,7 +103,7 @@ def test_ffmpeg_trim_command_uses_concat_segments(tmp_path, monkeypatch) -> None
         ],
     )
 
-    cmd = trimmer.build_ffmpeg_trim_command(project)
+    cmd = build_trim_command_for_test(project)
     graph = filtergraph_from(cmd)
 
     assert "trim=start=0:end=2,setpts=(PTS-STARTPTS)/1[v0]" in graph
@@ -129,7 +135,7 @@ def test_ffmpeg_trim_command_overlays_speed_indicator_on_sped_segments(
         ],
     )
 
-    cmd = trimmer.build_ffmpeg_trim_command(project)
+    cmd = build_trim_command_for_test(project)
     graph = filtergraph_from(cmd)
     badge = project / "work" / "speed-indicator-8x-light.png"
 
@@ -178,7 +184,7 @@ def test_ffmpeg_trim_command_skips_speed_indicator_for_short_sped_segments(
         ],
     )
 
-    cmd = trimmer.build_ffmpeg_trim_command(project)
+    cmd = build_trim_command_for_test(project)
     graph = filtergraph_from(cmd)
 
     assert "-loop" not in cmd
@@ -198,7 +204,7 @@ def test_ffmpeg_trim_command_skips_speed_indicator_without_sped_segments(
     )
     patch_probe_media(monkeypatch, trimmer)
 
-    cmd = trimmer.build_ffmpeg_trim_command(project)
+    cmd = build_trim_command_for_test(project)
     graph = filtergraph_from(cmd)
 
     assert "-loop" not in cmd

@@ -7,6 +7,7 @@ from typing import Any
 
 from vided.ffmpeg import VideoInfo
 from vided.project import write_json
+from vided.trimmer import TrimOptions, build_trim_command, plan_trim
 
 
 def video_info(
@@ -106,6 +107,16 @@ def patch_probe_media(monkeypatch, module, **video_info_kwargs: Any) -> None:
 def filtergraph_from(cmd: Sequence[str]) -> str:
     assert "-filter_complex" in cmd
     return cmd[cmd.index("-filter_complex") + 1]
+
+
+def build_trim_command_for_test(
+    project: Path,
+    *,
+    options: TrimOptions | None = None,
+    allow_vad_detection: bool = False,
+) -> list[str]:
+    plan = plan_trim(project, options=options, allow_vad_detection=allow_vad_detection)
+    return build_trim_command(plan)
 
 
 def _merged(base: Mapping[str, Any], overrides: Mapping[str, Any] | None) -> dict[str, Any]:

@@ -8,7 +8,7 @@ import pytest
 
 from vided.ffmpeg import probe_media
 from vided.project import create_project, paths
-from vided.trimmer import run_trim
+from vided.trimmer import TrimOptions, plan_trim, run_trim_plan
 
 
 def _read_json(url: str) -> dict:
@@ -29,7 +29,8 @@ def test_realistic_fixture_compares_default_and_vad_trim(
     for detector in ("audio", "silero"):
         project = tmp_path / detector
         create_project(realistic_short_fixture, project, copy_input=False)
-        output = run_trim(project, detector=detector, overwrite=True)
+        plan = plan_trim(project, options=TrimOptions(detector=detector), allow_vad_detection=True)
+        output = run_trim_plan(plan, overwrite=True).path
 
         assert output.exists()
         durations[detector] = probe_media(output).duration
