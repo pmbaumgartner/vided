@@ -20,6 +20,7 @@ vided = "vided.cli:main"
 
 [dependency-groups]
 dev = [
+    "actionlint-py>=1.7.12.24",
     "pytest>=8.0",
     "pytest-playwright>=0.7.2",
     "ruff>=0.8",
