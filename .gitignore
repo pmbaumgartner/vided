@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.playwright-cli/
+*-after-edit.yaml
+dist/
+build/
+*.egg-info/
+.DS_Store
+
+# Example project/output folders
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+*.m4v
+
+# Tracked test media fixtures use Git LFS.
+!tests/fixtures/media/*.mp4
+
+docs/
