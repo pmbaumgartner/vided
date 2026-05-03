@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .project import paths, read_json, write_json
+from .errors import ValidationError
+from .project import project_paths, read_json, write_json
 
 
 @dataclass(frozen=True)
@@ -13,6 +14,14 @@ class Rect:
     y: int
     w: int
     h: int
+
+    @property
+    def width(self) -> int:
+        return self.w
+
+    @property
+    def height(self) -> int:
+        return self.h
 
 
 @dataclass(frozen=True)
@@ -24,15 +33,46 @@ class Redaction:
     style: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class RedactionDocument:
+    schema_version: int
+    video: dict[str, Any]
+    defaults: dict[str, Any]
+    redactions: list[dict[str, Any]]
+    data: dict[str, Any]
+
+
 def load_redactions(project_root: Path) -> dict[str, Any]:
-    return read_json(paths(project_root).redactions_json, default={"redactions": []})
+    return read_json(project_paths(project_root).redactions_json, default={"redactions": []})
 
 
 def save_redactions(project_root: Path, data: dict[str, Any]) -> None:
-    write_json(paths(project_root).redactions_json, data)
+    write_json(project_paths(project_root).redactions_json, data)
 
 
-def parse_redactions(data: dict[str, Any]) -> list[Redaction]:
+def validate_redaction_document(data: dict[str, Any]) -> RedactionDocument:
+    if not isinstance(data, dict):
+        raise ValidationError("redaction document must be a JSON object")
+    raw_video = data.get("video", {})
+    if not isinstance(raw_video, dict):
+        raise ValidationError("video must be an object")
+    raw_defaults = data.get("defaults", {})
+    if not isinstance(raw_defaults, dict):
+        raise ValidationError("defaults must be an object")
+    raw_redactions = data.get("redactions", [])
+    if not isinstance(raw_redactions, list):
+        raise ValidationError("redactions must be a list")
+    render_redactions(data)
+    return RedactionDocument(
+        schema_version=int(data.get("schema_version", 1)),
+        video=dict(raw_video),
+        defaults=dict(raw_defaults),
+        redactions=[dict(item) for item in raw_redactions if isinstance(item, dict)],
+        data=data,
+    )
+
+
+def render_redactions(data: dict[str, Any]) -> list[Redaction]:
     video = data.get("video", {})
     duration = float(video.get("duration") or 0.0)
     width = int(video.get("width") or 0)
@@ -71,6 +111,10 @@ def parse_redactions(data: dict[str, Any]) -> list[Redaction]:
     return parsed
 
 
+def parse_redactions(data: dict[str, Any]) -> list[Redaction]:
+    return render_redactions(data)
+
+
 def validate_redaction(
     redaction_id: str,
     start: float,
@@ -81,12 +125,12 @@ def validate_redaction(
     height: int,
 ) -> None:
     if start >= end:
-        raise ValueError(f"{redaction_id}: start must be before end")
+        raise ValidationError(f"{redaction_id}: start must be before end")
     if rect.w <= 0 or rect.h <= 0:
-        raise ValueError(f"{redaction_id}: rectangle width and height must be greater than 0")
+        raise ValidationError(f"{redaction_id}: rectangle width and height must be greater than 0")
     if rect.x < 0 or rect.y < 0:
-        raise ValueError(f"{redaction_id}: rectangle x/y cannot be negative")
+        raise ValidationError(f"{redaction_id}: rectangle x/y cannot be negative")
     if width and rect.x + rect.w > width:
-        raise ValueError(f"{redaction_id}: rectangle extends beyond video width")
+        raise ValidationError(f"{redaction_id}: rectangle extends beyond video width")
     if height and rect.y + rect.h > height:
-        raise ValueError(f"{redaction_id}: rectangle extends beyond video height")
+        raise ValidationError(f"{redaction_id}: rectangle extends beyond video height")

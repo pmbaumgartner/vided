@@ -5,13 +5,14 @@ import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .ffmpeg import VideoInfo, probe_media
 
 PROJECT_FILE = "project.json"
 REDACTIONS_FILE = "redactions.json"
 FRAMES_FILE = "work/frames/frames.json"
+_MISSING = object()
 
 
 @dataclass(frozen=True)
@@ -29,25 +30,48 @@ class ProjectPaths:
     filtergraph: Path
 
 
-def paths(root: Path) -> ProjectPaths:
-    root = root.resolve()
-    input_dir = root / "input"
-    work_dir = root / "work"
+def project_paths(
+    project_root: Path,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> ProjectPaths:
+    project_root = project_root.resolve()
+    input_dir = project_root / "input"
+    work_dir = project_root / "work"
     frames_dir = work_dir / "frames"
-    output_dir = root / "output"
+    output_dir = project_root / "output"
+    if config is None:
+        config = _read_project_config_for_paths(project_root)
+    original = project_root / str(config.get("original_path", "input/original.mp4"))
+    trimmed = project_root / str(config.get("trimmed_path", "work/trimmed.mp4"))
     return ProjectPaths(
-        root=root,
+        root=project_root,
         input_dir=input_dir,
         work_dir=work_dir,
         frames_dir=frames_dir,
         output_dir=output_dir,
-        original=input_dir / "original.mp4",
-        trimmed=work_dir / "trimmed.mp4",
-        project_json=root / PROJECT_FILE,
-        redactions_json=root / REDACTIONS_FILE,
-        frames_json=root / FRAMES_FILE,
+        original=original,
+        trimmed=trimmed,
+        project_json=project_root / PROJECT_FILE,
+        redactions_json=project_root / REDACTIONS_FILE,
+        frames_json=project_root / FRAMES_FILE,
         filtergraph=work_dir / "filtergraph.txt",
     )
+
+
+def paths(root: Path) -> ProjectPaths:
+    return project_paths(root)
+
+
+def _read_project_config_for_paths(project_root: Path) -> dict[str, Any]:
+    path = project_root / PROJECT_FILE
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def ensure_project_dirs(p: ProjectPaths) -> None:
@@ -57,9 +81,9 @@ def ensure_project_dirs(p: ProjectPaths) -> None:
     p.output_dir.mkdir(parents=True, exist_ok=True)
 
 
-def read_json(path: Path, default: Any | None = None) -> Any:
+def read_json(path: Path, default: Any = _MISSING) -> Any:
     if not path.exists():
-        if default is not None:
+        if default is not _MISSING:
             return default
         raise FileNotFoundError(path)
     return json.loads(path.read_text(encoding="utf-8"))
@@ -70,34 +94,35 @@ def write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 
 
-def load_project(root: Path) -> dict[str, Any]:
-    p = paths(root)
+def load_project(project_root: Path) -> dict[str, Any]:
+    p = project_paths(project_root)
     return read_json(p.project_json)
 
 
-def save_project(root: Path, data: dict[str, Any]) -> None:
-    p = paths(root)
+def save_project(project_root: Path, data: dict[str, Any]) -> None:
+    p = project_paths(project_root, config=data)
     write_json(p.project_json, data)
 
 
 def create_project(
     source: Path,
-    root: Path,
+    project_root: Path,
     *,
     frame_interval: float = 1.0,
     copy_input: bool = True,
     overwrite: bool = False,
 ) -> dict[str, Any]:
     source = source.expanduser().resolve()
-    root = root.expanduser().resolve()
+    project_root = project_root.expanduser().resolve()
     if not source.exists():
         raise FileNotFoundError(source)
-    if root.exists() and any(root.iterdir()) and not overwrite:
+    if project_root.exists() and any(project_root.iterdir()) and not overwrite:
         raise FileExistsError(
-            f"Project folder already exists and is not empty: {root}. Use --overwrite to reuse it."
+            f"Project folder already exists and is not empty: {project_root}. "
+            "Use --overwrite to reuse it."
         )
 
-    p = paths(root)
+    p = project_paths(project_root)
     ensure_project_dirs(p)
 
     original_ext = source.suffix.lower() or ".mp4"
@@ -109,7 +134,6 @@ def create_project(
             original_path.unlink()
         original_path.symlink_to(source)
 
-    # paths() assumes .mp4, but keep the actual extension in project.json.
     src_info = probe_media(original_path)
     config = default_project_config(
         original_path=original_path,
@@ -118,7 +142,13 @@ def create_project(
         frame_interval=frame_interval,
     )
     write_json(p.project_json, config)
-    write_json(p.redactions_json, default_redactions(src_info, trimmed_path=p.trimmed))
+    write_json(
+        p.redactions_json,
+        default_redactions(
+            src_info,
+            trimmed_path=project_paths(project_root, config=config).trimmed,
+        ),
+    )
     return config
 
 
@@ -152,7 +182,7 @@ def default_project_config(
                 "style": "dark",
                 "min_display_seconds": 1.0,
             },
-            "silero": {
+            "silero-vad": {
                 "threshold": 0.5,
                 "min_speech_duration_ms": 250,
                 "min_silence_duration_ms": 300,

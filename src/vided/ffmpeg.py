@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .errors import ExternalToolError
 
-class ToolError(RuntimeError):
+
+class ToolError(ExternalToolError):
     """Raised when an external media tool fails."""
 
 

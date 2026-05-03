@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from .project import paths, read_json, write_json
-from .redactions import parse_redactions
+from .project import project_paths, read_json, write_json
+from .redactions import validate_redaction_document
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -38,7 +38,7 @@ def _safe_join(base: Path, relative: str) -> Path | None:
 
 
 def make_handler(project_root: Path):
-    p = paths(project_root)
+    p = project_paths(project_root)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
@@ -88,9 +88,9 @@ def make_handler(project_root: Path):
                 length = int(self.headers.get("Content-Length", "0"))
                 body = self.rfile.read(length).decode("utf-8")
                 payload = json.loads(body)
-                parse_redactions(payload)  # validation
+                validate_redaction_document(payload)
                 write_json(p.redactions_json, payload)
-                _json_response(self, {"ok": True, "redactions": payload.get("redactions", [])})
+                _json_response(self, payload)
             except Exception as exc:
                 _error(self, 400, str(exc))
 
@@ -123,6 +123,12 @@ def make_handler(project_root: Path):
     return Handler
 
 
+def create_server(
+    project_root: Path, *, host: str = "127.0.0.1", port: int = 8765
+) -> ThreadingHTTPServer:
+    return ThreadingHTTPServer((host, port), make_handler(project_root))
+
+
 def run_ui(
     project_root: Path,
     *,
@@ -130,13 +136,13 @@ def run_ui(
     port: int = 8765,
     open_browser: bool = True,
 ) -> None:
-    p = paths(project_root)
+    p = project_paths(project_root)
     if not p.project_json.exists():
         raise FileNotFoundError(f"Project not found: {p.project_json}")
     if not p.frames_json.exists():
         print("Warning: frames.json not found. Run `vided frames` before opening the UI.")
 
-    server = ThreadingHTTPServer((host, port), make_handler(project_root))
+    server = create_server(project_root, host=host, port=port)
     url = f"http://{host}:{port}/"
     print(f"Serving annotation UI at {url}")
     print("Press Ctrl+C to stop.")

@@ -91,7 +91,7 @@ def test_detect_speech_ranges_reports_missing_optional_dependency(monkeypatch, t
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
-    with pytest.raises(ValueError, match="uv sync --extra vad"):
+    with pytest.raises(vad.OptionalDependencyError, match="uv sync --extra vad"):
         vad.detect_speech_ranges(tmp_path / "vad.wav", vad.VadSettings())
 
 
@@ -148,7 +148,7 @@ def test_vad_command_writes_vad_files_but_not_trimmed_video(tmp_path, monkeypatc
     project = write_basic_project(
         tmp_path / "project",
         trim_overrides={
-            "silero": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
+            "silero-vad": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
         },
     )
     source = project / "input" / "original.mp4"
@@ -181,7 +181,7 @@ def test_silero_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> 
     project = write_basic_project(
         tmp_path / "project",
         trim_overrides={
-            "silero": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
+            "silero-vad": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
         },
     )
     patch_probe_media(monkeypatch, trimmer, duration=10.0, fps=30.0)
@@ -194,9 +194,20 @@ def test_silero_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> 
         },
     )
 
-    cmd = trimmer.build_ffmpeg_trim_command(project, detector="silero")
+    cmd = trimmer.build_ffmpeg_trim_command(project, detector="silero-vad")
     graph = filtergraph_from(cmd)
 
     assert "trim=start=0:end=2,setpts=(PTS-STARTPTS)/1[v0]" in graph
     assert "trim=start=2:end=10,setpts=(PTS-STARTPTS)/8[v1]" in graph
     assert "atempo=2,atempo=2,atempo=2,volume=0[a1]" in graph
+
+
+def test_silero_trim_command_preview_does_not_create_vad_report(tmp_path, monkeypatch) -> None:
+    project = write_basic_project(tmp_path / "project")
+    patch_probe_media(monkeypatch, trimmer, duration=10.0, fps=30.0)
+
+    with pytest.raises(vad.ProjectError, match="VAD ranges not found or stale"):
+        trimmer.build_ffmpeg_trim_command(project, detector="silero-vad")
+
+    assert not (project / "work" / "vad_ranges.json").exists()
+    assert not (project / "work" / "vad.wav").exists()

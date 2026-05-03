@@ -3,14 +3,22 @@ from __future__ import annotations
 import array
 import math
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .errors import ValidationError
 from .ffmpeg import VideoInfo, ensure_tool, probe_media, run_binary_command, run_command
-from .project import default_redactions, load_project, paths, read_json, save_project, write_json
+from .project import (
+    default_redactions,
+    load_project,
+    project_paths,
+    read_json,
+    save_project,
+    write_json,
+)
 from .vad import (
     activity_ranges_from_vad_report,
     load_or_create_vad_report,
@@ -37,6 +45,51 @@ class SpeedIndicatorSettings:
     corner: str = "top-right"
     style: str = "dark"
     min_display_seconds: float = 1.0
+
+
+@dataclass(frozen=True)
+class VadOptions:
+    threshold: float | None = None
+    min_speech_duration_ms: int | None = None
+    min_silence_duration_ms: int | None = None
+    speech_pad_ms: int | None = None
+    merge_speech_gap_seconds: float | None = None
+
+
+@dataclass(frozen=True)
+class TrimOptions:
+    detector: str | None = None
+    mode: str | None = None
+    margin: str | None = None
+    smooth: str | None = None
+    silent_speed: float | None = None
+    mute_silent_audio: bool | None = None
+    vad: VadOptions = field(default_factory=VadOptions)
+    speed_indicator: bool | None = None
+    speed_indicator_corner: str | None = None
+    speed_indicator_style: str | None = None
+    speed_indicator_min_display_seconds: float | None = None
+
+
+@dataclass(frozen=True)
+class TrimPlan:
+    project_root: Path
+    config: dict[str, Any]
+    original: Path
+    output: Path
+    media_info: VideoInfo
+    segments: list[TrimSegment]
+    render_config: dict[str, Any]
+    speed_indicator: SpeedIndicatorSettings
+    speed_indicator_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class OperationResult:
+    path: Path
+    command: list[str]
+    dry_run: bool
+    wrote_files: bool
 
 
 _SPEED_INDICATOR_CORNERS = {"top-left", "top-right", "bottom-left", "bottom-right"}
@@ -638,8 +691,7 @@ def _build_ffmpeg_filtergraph(
     return ";".join(parts)
 
 
-def build_ffmpeg_trim_command(
-    project_root: Path,
+def _trim_options_from_kwargs(
     *,
     detector: str | None = None,
     mode: str | None = None,
@@ -656,39 +708,71 @@ def build_ffmpeg_trim_command(
     speed_indicator_corner: str | None = None,
     speed_indicator_style: str | None = None,
     speed_indicator_min_seconds: float | None = None,
-    allow_vad_detection: bool = True,
-) -> list[str]:
-    cfg = load_project(project_root)
-    p = paths(project_root)
+) -> TrimOptions:
+    return TrimOptions(
+        detector=detector,
+        mode=mode,
+        margin=margin,
+        smooth=smooth,
+        silent_speed=silent_speed,
+        mute_silent_audio=mute_silent_audio,
+        vad=VadOptions(
+            threshold=vad_threshold,
+            min_speech_duration_ms=vad_min_speech_duration_ms,
+            min_silence_duration_ms=vad_min_silence_duration_ms,
+            speech_pad_ms=vad_speech_pad_ms,
+            merge_speech_gap_seconds=vad_merge_speech_gap_seconds,
+        ),
+        speed_indicator=speed_indicator,
+        speed_indicator_corner=speed_indicator_corner,
+        speed_indicator_style=speed_indicator_style,
+        speed_indicator_min_display_seconds=speed_indicator_min_seconds,
+    )
 
-    original = p.root / cfg.get("original_path", "input/original.mp4")
-    trimmed = p.root / cfg.get("trimmed_path", "work/trimmed.mp4")
-    trim_cfg: dict[str, Any] = cfg.get("trim", {})
+
+def plan_trim(
+    project_root: Path,
+    *,
+    options: TrimOptions | None = None,
+    allow_vad_detection: bool = False,
+) -> TrimPlan:
+    options = options or TrimOptions()
+    cfg = load_project(project_root)
+    p = project_paths(project_root, config=cfg)
+
+    original = p.original
+    trimmed = p.trimmed
+    trim_cfg_raw = cfg.get("trim", {})
+    trim_cfg: dict[str, Any] = trim_cfg_raw if isinstance(trim_cfg_raw, dict) else {}
     media_info = probe_media(original)
 
     detector = normalize_detector(
-        detector or trim_cfg.get("detector") or trim_cfg.get("engine") or "audio"
+        options.detector or trim_cfg.get("detector") or trim_cfg.get("engine") or "audio"
     )
-    mode = mode or trim_cfg.get("mode", "hybrid")
-    margin = margin or trim_cfg.get("margin", "0.2s")
-    smooth = smooth or trim_cfg.get("smooth", "0.2s,0.1s")
+    mode = options.mode or trim_cfg.get("mode", "hybrid")
+    margin = options.margin or trim_cfg.get("margin", "0.2s")
+    smooth = options.smooth or trim_cfg.get("smooth", "0.2s,0.1s")
     silent_speed = float(
-        silent_speed if silent_speed is not None else trim_cfg.get("silent_speed", 8.0)
+        options.silent_speed
+        if options.silent_speed is not None
+        else trim_cfg.get("silent_speed", 8.0)
     )
     mute_silent_audio = bool(
-        trim_cfg.get("mute_silent_audio", True) if mute_silent_audio is None else mute_silent_audio
+        trim_cfg.get("mute_silent_audio", True)
+        if options.mute_silent_audio is None
+        else options.mute_silent_audio
     )
     long_silence_min_seconds = float(trim_cfg.get("long_silence_min_seconds", 1.5))
     speed_indicator_settings = _speed_indicator_settings(
         trim_cfg,
-        enabled=speed_indicator,
-        corner=speed_indicator_corner,
-        style=speed_indicator_style,
-        min_display_seconds=speed_indicator_min_seconds,
+        enabled=options.speed_indicator,
+        corner=options.speed_indicator_corner,
+        style=options.speed_indicator_style,
+        min_display_seconds=options.speed_indicator_min_display_seconds,
     )
 
     if mode not in {"hybrid", "speed", "cut", "keep"}:
-        raise ValueError("trim mode must be one of: hybrid, speed, cut, keep")
+        raise ValidationError("trim mode must be one of: hybrid, speed, cut, keep")
 
     if mode == "keep":
         segments = [TrimSegment(start=0.0, end=media_info.duration)]
@@ -711,11 +795,11 @@ def build_ffmpeg_trim_command(
     else:
         vad_settings = vad_settings_from_trim_config(
             trim_cfg,
-            threshold=vad_threshold,
-            min_speech_duration_ms=vad_min_speech_duration_ms,
-            min_silence_duration_ms=vad_min_silence_duration_ms,
-            speech_pad_ms=vad_speech_pad_ms,
-            merge_speech_gap_seconds=vad_merge_speech_gap_seconds,
+            threshold=options.vad.threshold,
+            min_speech_duration_ms=options.vad.min_speech_duration_ms,
+            min_silence_duration_ms=options.vad.min_silence_duration_ms,
+            speech_pad_ms=options.vad.speech_pad_ms,
+            merge_speech_gap_seconds=options.vad.merge_speech_gap_seconds,
         )
         report = load_or_create_vad_report(
             project_root,
@@ -724,11 +808,11 @@ def build_ffmpeg_trim_command(
             settings=vad_settings,
             allow_detection=allow_vad_detection,
             force=_has_vad_overrides(
-                vad_threshold=vad_threshold,
-                vad_min_speech_duration_ms=vad_min_speech_duration_ms,
-                vad_min_silence_duration_ms=vad_min_silence_duration_ms,
-                vad_speech_pad_ms=vad_speech_pad_ms,
-                vad_merge_speech_gap_seconds=vad_merge_speech_gap_seconds,
+                vad_threshold=options.vad.threshold,
+                vad_min_speech_duration_ms=options.vad.min_speech_duration_ms,
+                vad_min_silence_duration_ms=options.vad.min_silence_duration_ms,
+                vad_speech_pad_ms=options.vad.speech_pad_ms,
+                vad_merge_speech_gap_seconds=options.vad.merge_speech_gap_seconds,
             ),
         )
         ranges = activity_ranges_from_vad_report(report, duration=media_info.duration)
@@ -754,21 +838,33 @@ def build_ffmpeg_trim_command(
             p.work_dir
             / f"speed-indicator-{_safe_indicator_label(label)}-{speed_indicator_settings.style}.png"
         )
-        _write_speed_indicator_badge(
-            indicator_path,
-            label=label,
-            style=speed_indicator_settings.style,
-            video_width=media_info.width,
-            video_height=media_info.height,
-        )
 
+    render_cfg_raw = cfg.get("render", {})
+    render_cfg: dict[str, Any] = render_cfg_raw if isinstance(render_cfg_raw, dict) else {}
+    return TrimPlan(
+        project_root=p.root,
+        config=cfg,
+        original=original,
+        output=trimmed,
+        media_info=media_info,
+        segments=segments,
+        render_config=render_cfg,
+        speed_indicator=speed_indicator_settings,
+        speed_indicator_path=indicator_path,
+    )
+
+
+def build_trim_command(plan: TrimPlan) -> list[str]:
     graph = _build_ffmpeg_filtergraph(
-        segments,
-        has_audio=media_info.has_audio,
-        speed_indicator_input=1 if indicator_path else None,
-        speed_indicator_corner=speed_indicator_settings.corner,
-        speed_indicator_inset=_speed_indicator_inset(media_info.width, media_info.height),
-        speed_indicator_min_display_seconds=speed_indicator_settings.min_display_seconds,
+        plan.segments,
+        has_audio=plan.media_info.has_audio,
+        speed_indicator_input=1 if plan.speed_indicator_path else None,
+        speed_indicator_corner=plan.speed_indicator.corner,
+        speed_indicator_inset=_speed_indicator_inset(
+            plan.media_info.width,
+            plan.media_info.height,
+        ),
+        speed_indicator_min_display_seconds=plan.speed_indicator.min_display_seconds,
     )
 
     cmd = [
@@ -776,10 +872,10 @@ def build_ffmpeg_trim_command(
         "-hide_banner",
         "-y",
         "-i",
-        str(original),
+        str(plan.original),
     ]
-    if indicator_path is not None:
-        cmd.extend(["-loop", "1", "-i", str(indicator_path)])
+    if plan.speed_indicator_path is not None:
+        cmd.extend(["-loop", "1", "-i", str(plan.speed_indicator_path)])
     cmd.extend(
         [
             "-filter_complex",
@@ -788,10 +884,10 @@ def build_ffmpeg_trim_command(
             "[vout]",
         ]
     )
-    if media_info.has_audio:
+    if plan.media_info.has_audio:
         cmd.extend(["-map", "[aout]"])
 
-    render_cfg: dict[str, Any] = cfg.get("render", {})
+    render_cfg = plan.render_config
     cmd.extend(
         [
             "-c:v",
@@ -804,11 +900,118 @@ def build_ffmpeg_trim_command(
             str(render_cfg.get("pixel_format", "yuv420p")),
         ]
     )
-    if media_info.has_audio:
+    if plan.media_info.has_audio:
         cmd.extend(["-c:a", "aac", "-b:a", str(render_cfg.get("audio_bitrate", "192k"))])
-    cmd.extend(["-movflags", "+faststart"])
-    cmd.append(str(trimmed))
+    cmd.extend(["-movflags", "+faststart", str(plan.output)])
     return cmd
+
+
+def build_ffmpeg_trim_command(
+    project_root: Path,
+    *,
+    detector: str | None = None,
+    mode: str | None = None,
+    margin: str | None = None,
+    smooth: str | None = None,
+    silent_speed: float | None = None,
+    mute_silent_audio: bool | None = None,
+    vad_threshold: float | None = None,
+    vad_min_speech_duration_ms: int | None = None,
+    vad_min_silence_duration_ms: int | None = None,
+    vad_speech_pad_ms: int | None = None,
+    vad_merge_speech_gap_seconds: float | None = None,
+    speed_indicator: bool | None = None,
+    speed_indicator_corner: str | None = None,
+    speed_indicator_style: str | None = None,
+    speed_indicator_min_seconds: float | None = None,
+    allow_vad_detection: bool = False,
+) -> list[str]:
+    options = _trim_options_from_kwargs(
+        detector=detector,
+        mode=mode,
+        margin=margin,
+        smooth=smooth,
+        silent_speed=silent_speed,
+        mute_silent_audio=mute_silent_audio,
+        vad_threshold=vad_threshold,
+        vad_min_speech_duration_ms=vad_min_speech_duration_ms,
+        vad_min_silence_duration_ms=vad_min_silence_duration_ms,
+        vad_speech_pad_ms=vad_speech_pad_ms,
+        vad_merge_speech_gap_seconds=vad_merge_speech_gap_seconds,
+        speed_indicator=speed_indicator,
+        speed_indicator_corner=speed_indicator_corner,
+        speed_indicator_style=speed_indicator_style,
+        speed_indicator_min_seconds=speed_indicator_min_seconds,
+    )
+    plan = plan_trim(
+        project_root,
+        options=options,
+        allow_vad_detection=allow_vad_detection,
+    )
+    return build_trim_command(plan)
+
+
+def _write_trim_metadata(plan: TrimPlan) -> None:
+    info = probe_media(plan.output)
+    cfg = dict(plan.config)
+    cfg["trimmed_video"] = info.as_dict()
+    save_project(plan.project_root, cfg)
+
+    p = project_paths(plan.project_root, config=cfg)
+    redactions = read_json(p.redactions_json, default={})
+    if not redactions or redactions.get("redactions") == []:
+        write_json(p.redactions_json, default_redactions(info, trimmed_path=plan.output))
+    else:
+        redactions.setdefault("video", {})
+        redactions["video"].update(
+            {
+                "path": str(plan.output),
+                "width": info.width,
+                "height": info.height,
+                "duration": info.duration,
+            }
+        )
+        write_json(p.redactions_json, redactions)
+
+
+def _write_trim_assets(plan: TrimPlan) -> None:
+    if plan.speed_indicator_path is None:
+        return
+    label = _speed_label(max((segment.speed for segment in plan.segments), default=1.0))
+    _write_speed_indicator_badge(
+        plan.speed_indicator_path,
+        label=label,
+        style=plan.speed_indicator.style,
+        video_width=plan.media_info.width,
+        video_height=plan.media_info.height,
+    )
+
+
+def run_trim_plan(
+    plan: TrimPlan,
+    *,
+    overwrite: bool = False,
+    dry_run: bool = False,
+) -> OperationResult:
+    if plan.output.exists() and not overwrite and not dry_run:
+        raise FileExistsError(
+            f"Trimmed file already exists: {plan.output}. Use --overwrite to replace it."
+        )
+
+    ensure_tool("ffmpeg")
+    cmd = build_trim_command(plan)
+
+    if not dry_run:
+        plan.output.parent.mkdir(parents=True, exist_ok=True)
+        if overwrite and plan.output.exists():
+            plan.output.unlink()
+        _write_trim_assets(plan)
+
+    run_command(cmd, dry_run=dry_run)
+
+    if not dry_run:
+        _write_trim_metadata(plan)
+    return OperationResult(path=plan.output, command=cmd, dry_run=dry_run, wrote_files=not dry_run)
 
 
 def run_trim(
@@ -832,18 +1035,7 @@ def run_trim(
     overwrite: bool = False,
     dry_run: bool = False,
 ) -> Path:
-    cfg = load_project(project_root)
-    p = paths(project_root)
-    trimmed = p.root / cfg.get("trimmed_path", "work/trimmed.mp4")
-    trimmed.parent.mkdir(parents=True, exist_ok=True)
-    if trimmed.exists() and not overwrite and not dry_run:
-        raise FileExistsError(
-            f"Trimmed file already exists: {trimmed}. Use --overwrite to replace it."
-        )
-
-    ensure_tool("ffmpeg")
-    cmd = build_ffmpeg_trim_command(
-        project_root,
+    options = _trim_options_from_kwargs(
         detector=detector,
         mode=mode,
         margin=margin,
@@ -859,31 +1051,7 @@ def run_trim(
         speed_indicator_corner=speed_indicator_corner,
         speed_indicator_style=speed_indicator_style,
         speed_indicator_min_seconds=speed_indicator_min_seconds,
-        allow_vad_detection=not dry_run,
     )
-
-    if overwrite and trimmed.exists() and not dry_run:
-        trimmed.unlink()
-
-    run_command(cmd, dry_run=dry_run)
-
-    if not dry_run:
-        info = probe_media(trimmed)
-        cfg["trimmed_video"] = info.as_dict()
-        save_project(project_root, cfg)
-
-        redactions = read_json(p.redactions_json, default={})
-        if not redactions or redactions.get("redactions") == []:
-            write_json(p.redactions_json, default_redactions(info, trimmed_path=trimmed))
-        else:
-            redactions.setdefault("video", {})
-            redactions["video"].update(
-                {
-                    "path": str(trimmed),
-                    "width": info.width,
-                    "height": info.height,
-                    "duration": info.duration,
-                }
-            )
-            write_json(p.redactions_json, redactions)
-    return trimmed
+    plan = plan_trim(project_root, options=options, allow_vad_detection=not dry_run)
+    result = run_trim_plan(plan, overwrite=overwrite, dry_run=dry_run)
+    return result.path

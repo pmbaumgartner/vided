@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .ffmpeg import ensure_tool, probe_media, run_command
-from .project import load_project, paths, save_project, write_json
+from .project import load_project, project_paths, save_project, write_json
 
 
 def generate_frames(
@@ -18,8 +18,8 @@ def generate_frames(
 ) -> Path:
     ensure_tool("ffmpeg")
     cfg = load_project(project_root)
-    p = paths(project_root)
-    trimmed = p.root / cfg.get("trimmed_path", "work/trimmed.mp4")
+    p = project_paths(project_root, config=cfg)
+    trimmed = p.trimmed
     if not trimmed.exists():
         raise FileNotFoundError(f"Trimmed video not found: {trimmed}. Run `vided trim` first.")
 
@@ -33,9 +33,10 @@ def generate_frames(
 
     if p.frames_dir.exists() and overwrite and not dry_run:
         shutil.rmtree(p.frames_dir)
-    p.frames_dir.mkdir(parents=True, exist_ok=True)
+    if not dry_run:
+        p.frames_dir.mkdir(parents=True, exist_ok=True)
 
-    existing = list(p.frames_dir.glob("frame_*.jpg"))
+    existing = list(p.frames_dir.glob("frame_*.jpg")) if p.frames_dir.exists() else []
     if existing and not overwrite and not dry_run:
         raise FileExistsError(
             f"Frames already exist in {p.frames_dir}. Use --overwrite to regenerate them."

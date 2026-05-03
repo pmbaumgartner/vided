@@ -5,12 +5,13 @@ import re
 import sys
 from pathlib import Path
 
+from .errors import VidedError
 from .ffmpeg import ToolError, ensure_tool
 from .frames import generate_frames
-from .project import create_project, paths
-from .redactions import load_redactions, parse_redactions
+from .project import create_project, project_paths
+from .redactions import load_redactions, render_redactions, validate_redaction_document
 from .render import render_project
-from .trimmer import build_ffmpeg_trim_command, run_trim
+from .trimmer import TrimOptions, VadOptions, build_trim_command, plan_trim, run_trim_plan
 from .vad import run_vad_detection
 
 
@@ -31,7 +32,7 @@ def _add_trim_detector_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--detector",
         "--engine",
-        choices=["audio", "silero", "vad", "silero-vad"],
+        choices=["audio", "silero-vad", "silero", "vad"],
         default=None,
         help="Detector used to classify normal-speed sections.",
     )
@@ -183,27 +184,13 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_trim(args: argparse.Namespace) -> int:
-    output = run_trim(
+    plan = plan_trim(
         args.project,
-        detector=args.detector,
-        mode=args.mode,
-        margin=args.margin,
-        smooth=args.smooth,
-        silent_speed=args.silent_speed,
-        mute_silent_audio=args.mute_silent_audio,
-        vad_threshold=args.vad_threshold,
-        vad_min_speech_duration_ms=args.vad_min_speech_ms,
-        vad_min_silence_duration_ms=args.vad_min_silence_ms,
-        vad_speech_pad_ms=args.vad_speech_pad_ms,
-        vad_merge_speech_gap_seconds=args.vad_merge_gap,
-        speed_indicator=args.speed_indicator,
-        speed_indicator_corner=args.speed_indicator_corner,
-        speed_indicator_style=args.speed_indicator_style,
-        speed_indicator_min_seconds=args.speed_indicator_min_seconds,
-        overwrite=args.overwrite,
-        dry_run=args.dry_run,
+        options=_trim_options_from_args(args),
+        allow_vad_detection=not args.dry_run,
     )
-    print(f"Trimmed video: {output}")
+    result = run_trim_plan(plan, overwrite=args.overwrite, dry_run=args.dry_run)
+    print(f"Trimmed video: {result.path}")
     return 0
 
 
@@ -253,8 +240,11 @@ def cmd_render(args: argparse.Namespace) -> int:
 
 def cmd_validate(args: argparse.Namespace) -> int:
     data = load_redactions(args.project)
-    redactions = parse_redactions(data)
-    print(f"OK: {len(redactions)} redaction(s) valid in {paths(args.project).redactions_json}")
+    validate_redaction_document(data)
+    redactions = render_redactions(data)
+    print(
+        f"OK: {len(redactions)} redaction(s) valid in {project_paths(args.project).redactions_json}"
+    )
     return 0
 
 
@@ -271,26 +261,36 @@ def cmd_doctor(args: argparse.Namespace) -> int:  # noqa: ARG001
 
 
 def cmd_trim_command(args: argparse.Namespace) -> int:
-    cmd = build_ffmpeg_trim_command(
+    plan = plan_trim(
         args.project,
+        options=_trim_options_from_args(args),
+        allow_vad_detection=False,
+    )
+    cmd = build_trim_command(plan)
+    print(" ".join(cmd))
+    return 0
+
+
+def _trim_options_from_args(args: argparse.Namespace) -> TrimOptions:
+    return TrimOptions(
         detector=args.detector,
         mode=args.mode,
         margin=args.margin,
         smooth=args.smooth,
         silent_speed=args.silent_speed,
         mute_silent_audio=args.mute_silent_audio,
-        vad_threshold=args.vad_threshold,
-        vad_min_speech_duration_ms=args.vad_min_speech_ms,
-        vad_min_silence_duration_ms=args.vad_min_silence_ms,
-        vad_speech_pad_ms=args.vad_speech_pad_ms,
-        vad_merge_speech_gap_seconds=args.vad_merge_gap,
+        vad=VadOptions(
+            threshold=args.vad_threshold,
+            min_speech_duration_ms=args.vad_min_speech_ms,
+            min_silence_duration_ms=args.vad_min_silence_ms,
+            speech_pad_ms=args.vad_speech_pad_ms,
+            merge_speech_gap_seconds=args.vad_merge_gap,
+        ),
         speed_indicator=args.speed_indicator,
         speed_indicator_corner=args.speed_indicator_corner,
         speed_indicator_style=args.speed_indicator_style,
-        speed_indicator_min_seconds=args.speed_indicator_min_seconds,
+        speed_indicator_min_display_seconds=args.speed_indicator_min_seconds,
     )
-    print(" ".join(cmd))
-    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -302,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         return int(args.func(args))
-    except (FileNotFoundError, FileExistsError, ValueError, ToolError) as exc:
+    except (FileNotFoundError, FileExistsError, VidedError, ValueError, ToolError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

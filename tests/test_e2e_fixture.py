@@ -78,7 +78,9 @@ def test_realistic_fixture_generates_frames_and_serves_ui_api(
             method="PUT",
         )
         with urlopen(request, timeout=5) as response:
-            assert json.loads(response.read().decode("utf-8"))["ok"] is True
+            assert json.loads(response.read().decode("utf-8"))["redactions"][0]["id"] == (
+                "e2e-redaction"
+            )
 
         redactions = _read_json(f"{base_url}/api/redactions")
         assert redactions["redactions"][0]["id"] == "e2e-redaction"

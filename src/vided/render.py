@@ -5,8 +5,8 @@ from typing import Any
 
 from .ffmpeg import ensure_tool, run_command
 from .filtergraph import build_debug_filtergraph, build_final_filtergraph, write_filtergraph
-from .project import load_project, paths
-from .redactions import load_redactions, parse_redactions
+from .project import load_project, project_paths
+from .redactions import load_redactions, render_redactions
 
 
 def render_project(
@@ -19,16 +19,17 @@ def render_project(
 ) -> Path:
     ensure_tool("ffmpeg")
     cfg = load_project(project_root)
-    p = paths(project_root)
-    trimmed = p.root / cfg.get("trimmed_path", "work/trimmed.mp4")
+    p = project_paths(project_root, config=cfg)
+    trimmed = p.trimmed
     if not trimmed.exists():
         raise FileNotFoundError(f"Trimmed video not found: {trimmed}. Run `vided trim` first.")
 
     redaction_data = load_redactions(project_root)
-    redactions = parse_redactions(redaction_data)
+    redactions = render_redactions(redaction_data)
     graph = build_debug_filtergraph(redactions) if debug else build_final_filtergraph(redactions)
     filtergraph_path = p.work_dir / ("filtergraph.debug.txt" if debug else "filtergraph.txt")
-    write_filtergraph(filtergraph_path, graph)
+    if not dry_run:
+        write_filtergraph(filtergraph_path, graph)
 
     render_cfg: dict[str, Any] = cfg.get("render", {})
     video_codec = str(render_cfg.get("video_codec", "libx264"))
@@ -41,7 +42,8 @@ def render_project(
         output = p.output_dir / ("debug-preview.mp4" if debug else "final.mp4")
     elif not output.is_absolute():
         output = p.root / output
-    output.parent.mkdir(parents=True, exist_ok=True)
+    if not dry_run:
+        output.parent.mkdir(parents=True, exist_ok=True)
 
     cmd = [
         "ffmpeg",

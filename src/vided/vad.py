@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from .errors import OptionalDependencyError, ProjectError, ValidationError
 from .ffmpeg import VideoInfo, ensure_tool, probe_media, run_command
-from .project import load_project, paths, read_json, write_json
+from .project import load_project, project_paths, read_json, write_json
 from .time_ranges import (
     TimeRange,
     complement_ranges,
@@ -50,8 +51,8 @@ def normalize_detector(value: str | None) -> str:
     if detector in {"audio", "level", "levels"}:
         return "audio"
     if detector in {"silero", "vad", "silero-vad"}:
-        return "silero"
-    raise ValueError("trim detector must be one of: audio, silero")
+        return "silero-vad"
+    raise ValidationError("trim detector must be one of: audio, silero-vad")
 
 
 def parse_manual_keep_ranges(raw: Any) -> tuple[TimeRange, ...]:
@@ -91,6 +92,8 @@ def vad_settings_from_trim_config(
         vad_cfg.update(trim_cfg["vad"])
     if isinstance(trim_cfg.get("silero"), dict):
         vad_cfg.update(trim_cfg["silero"])
+    if isinstance(trim_cfg.get("silero-vad"), dict):
+        vad_cfg.update(trim_cfg["silero-vad"])
 
     settings = VadSettings(
         threshold=float(threshold if threshold is not None else vad_cfg.get("threshold", 0.5)),
@@ -152,7 +155,7 @@ def detect_speech_ranges(audio_path: Path, settings: VadSettings) -> list[TimeRa
         import numpy as np
         import onnxruntime
     except ImportError as exc:
-        raise ValueError(
+        raise OptionalDependencyError(
             "Silero VAD ONNX support is not installed. Install it with `uv sync --extra vad`."
         ) from exc
 
@@ -321,7 +324,7 @@ def build_vad_report(
         normal_speed = [TimeRange(start=0.0, end=duration)]
     non_speech = complement_ranges(normal_speed, duration)
 
-    p = paths(project_root)
+    p = project_paths(project_root)
     return {
         "schema_version": 1,
         "detector": "silero-vad",
@@ -356,8 +359,8 @@ def run_vad_detection(
         speech_pad_ms=speech_pad_ms,
         merge_speech_gap_seconds=merge_speech_gap_seconds,
     )
-    p = paths(project_root)
-    source = p.root / cfg.get("original_path", "input/original.mp4")
+    p = project_paths(project_root, config=cfg)
+    source = p.original
     media_info = probe_media(source)
     report = create_vad_report(
         project_root,
@@ -378,17 +381,17 @@ def load_or_create_vad_report(
     allow_detection: bool = True,
     force: bool = False,
 ) -> dict[str, Any]:
-    p = paths(project_root)
+    p = project_paths(project_root)
     report_path = p.work_dir / VAD_RANGES_FILE
-    if report_path.exists() and not force:
+    if report_path.exists():
         report = read_json(report_path)
         if _report_matches(
             report, root=p.root, source=source, media_info=media_info, settings=settings
-        ):
+        ) and (not force or not allow_detection):
             return report
 
     if not allow_detection:
-        raise ValueError(f"VAD ranges not found or stale. Run `vided vad {project_root}` first.")
+        raise ProjectError(f"VAD ranges not found or stale. Run `vided vad {project_root}` first.")
 
     report = create_vad_report(
         project_root, source=source, media_info=media_info, settings=settings
@@ -407,7 +410,7 @@ def create_vad_report(
     audio_source: Path | None = None
     speech: list[TimeRange] = []
     if media_info.has_audio:
-        audio_source = paths(project_root).work_dir / VAD_AUDIO_FILE
+        audio_source = project_paths(project_root).work_dir / VAD_AUDIO_FILE
         extract_vad_audio(source, audio_source)
         speech = detect_speech_ranges(audio_source, settings)
 

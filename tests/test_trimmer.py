@@ -31,8 +31,8 @@ def test_default_project_config_uses_hybrid_trim_mode() -> None:
         "style": "dark",
         "min_display_seconds": 1.0,
     }
-    assert cfg["trim"]["silero"]["threshold"] == 0.5
-    assert cfg["trim"]["silero"]["manual_keep_ranges"] == []
+    assert cfg["trim"]["silero-vad"]["threshold"] == 0.5
+    assert cfg["trim"]["silero-vad"]["manual_keep_ranges"] == []
 
 
 def test_speed_indicator_badge_generates_rgba_png(tmp_path) -> None:
@@ -135,7 +135,7 @@ def test_ffmpeg_trim_command_overlays_speed_indicator_on_sped_segments(
 
     assert cmd[cmd.index("-loop") + 1] == "1"
     assert str(badge) in cmd
-    assert badge.exists()
+    assert not badge.exists()
     assert "trim=start=0:end=2,setpts=(PTS-STARTPTS)/1[v0]" in graph
     assert "trim=start=3:end=15,setpts=(PTS-STARTPTS)/8[v1base]" in graph
     assert (
@@ -143,6 +143,17 @@ def test_ffmpeg_trim_command_overlays_speed_indicator_on_sped_segments(
         "shortest=1:eof_action=repeat:repeatlast=1[v1]"
     ) in graph
     assert "concat=n=2:v=1:a=1[vout][aout]" in graph
+
+    monkeypatch.setattr(trimmer, "ensure_tool", lambda _: "ffmpeg")
+    monkeypatch.setattr(trimmer, "run_command", lambda *args, **kwargs: None)
+    plan = trimmer.plan_trim(project)
+    dry_result = trimmer.run_trim_plan(plan, overwrite=True, dry_run=True)
+    assert dry_result.wrote_files is False
+    assert not badge.exists()
+
+    result = trimmer.run_trim_plan(plan, overwrite=True)
+    assert result.wrote_files is True
+    assert badge.exists()
 
 
 def test_ffmpeg_trim_command_skips_speed_indicator_for_short_sped_segments(

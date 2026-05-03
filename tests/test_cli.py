@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from types import SimpleNamespace
 
 from vided import cli
 
@@ -71,13 +72,20 @@ def test_doctor_checks_only_ffmpeg_and_ffprobe(monkeypatch, capsys) -> None:
 
 def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
     calls = {}
+    plan = object()
 
-    def fake_run_trim(project: Path, **kwargs) -> Path:
+    def fake_plan_trim(project: Path, **kwargs):
         calls["project"] = project
         calls["kwargs"] = kwargs
-        return project / "work" / "trimmed.mp4"
+        return plan
 
-    monkeypatch.setattr(cli, "run_trim", fake_run_trim)
+    def fake_run_trim_plan(trim_plan, **kwargs):
+        calls["plan"] = trim_plan
+        calls["run_kwargs"] = kwargs
+        return SimpleNamespace(path=Path("project-dir/work/trimmed.mp4"))
+
+    monkeypatch.setattr(cli, "plan_trim", fake_plan_trim)
+    monkeypatch.setattr(cli, "run_trim_plan", fake_run_trim_plan)
 
     assert (
         cli.main(
@@ -85,7 +93,7 @@ def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
                 "trim",
                 "project-dir",
                 "--detector",
-                "silero",
+                "silero-vad",
                 "--vad-threshold",
                 "0.4",
                 "--vad-min-speech-ms",
@@ -108,27 +116,38 @@ def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
         == 0
     )
     assert calls["project"] == Path("project-dir")
-    assert calls["kwargs"]["detector"] == "silero"
-    assert calls["kwargs"]["vad_threshold"] == 0.4
-    assert calls["kwargs"]["vad_min_speech_duration_ms"] == 200
-    assert calls["kwargs"]["vad_min_silence_duration_ms"] == 350
-    assert calls["kwargs"]["vad_speech_pad_ms"] == 125
-    assert calls["kwargs"]["vad_merge_speech_gap_seconds"] == 0.3
-    assert calls["kwargs"]["speed_indicator"] is True
-    assert calls["kwargs"]["speed_indicator_corner"] == "bottom-right"
-    assert calls["kwargs"]["speed_indicator_style"] == "light"
-    assert calls["kwargs"]["speed_indicator_min_seconds"] == 1.25
+    options = calls["kwargs"]["options"]
+    assert options.detector == "silero-vad"
+    assert options.vad.threshold == 0.4
+    assert options.vad.min_speech_duration_ms == 200
+    assert options.vad.min_silence_duration_ms == 350
+    assert options.vad.speech_pad_ms == 125
+    assert options.vad.merge_speech_gap_seconds == 0.3
+    assert options.speed_indicator is True
+    assert options.speed_indicator_corner == "bottom-right"
+    assert options.speed_indicator_style == "light"
+    assert options.speed_indicator_min_display_seconds == 1.25
+    assert calls["kwargs"]["allow_vad_detection"] is True
+    assert calls["plan"] is plan
+    assert calls["run_kwargs"]["overwrite"] is False
+    assert calls["run_kwargs"]["dry_run"] is False
 
 
 def test_trim_command_passes_speed_indicator_options(monkeypatch, capsys) -> None:
     calls = {}
+    plan = object()
 
-    def fake_build_ffmpeg_trim_command(project: Path, **kwargs) -> list[str]:
+    def fake_plan_trim(project: Path, **kwargs):
         calls["project"] = project
         calls["kwargs"] = kwargs
+        return plan
+
+    def fake_build_trim_command(trim_plan) -> list[str]:
+        calls["plan"] = trim_plan
         return ["ffmpeg", "-i", "input.mp4", "output.mp4"]
 
-    monkeypatch.setattr(cli, "build_ffmpeg_trim_command", fake_build_ffmpeg_trim_command)
+    monkeypatch.setattr(cli, "plan_trim", fake_plan_trim)
+    monkeypatch.setattr(cli, "build_trim_command", fake_build_trim_command)
 
     assert (
         cli.main(
@@ -147,10 +166,13 @@ def test_trim_command_passes_speed_indicator_options(monkeypatch, capsys) -> Non
         == 0
     )
     assert calls["project"] == Path("project-dir")
-    assert calls["kwargs"]["speed_indicator"] is True
-    assert calls["kwargs"]["speed_indicator_corner"] == "top-left"
-    assert calls["kwargs"]["speed_indicator_style"] == "dark"
-    assert calls["kwargs"]["speed_indicator_min_seconds"] == 0.75
+    options = calls["kwargs"]["options"]
+    assert options.speed_indicator is True
+    assert options.speed_indicator_corner == "top-left"
+    assert options.speed_indicator_style == "dark"
+    assert options.speed_indicator_min_display_seconds == 0.75
+    assert calls["kwargs"]["allow_vad_detection"] is False
+    assert calls["plan"] is plan
     assert "ffmpeg -i input.mp4 output.mp4" in capsys.readouterr().out
 
 
