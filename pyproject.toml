@@ -1,0 +1,56 @@
+[project]
+name = "vided"
+version = "0.1.0"
+description = "A stupid-simple local video silence speeder and rectangular blur redactor."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+    "Pillow>=10.1",
+]
+
+[project.optional-dependencies]
+vad = [
+    "onnxruntime>=1.16.1",
+]
+
+[project.scripts]
+vided = "vided.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-playwright>=0.7.2",
+    "ruff>=0.8",
+    "ty>=0.0.34",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vided"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+    "/uv.lock",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "browser: exercises the browser UI through Playwright",
+    "e2e: exercises real fixture media and external ffmpeg/onnx tooling",
+]

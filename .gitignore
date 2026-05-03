@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .playwright-cli/
+.scratch/
+test-results/
 *-after-edit.yaml
 dist/
 build/

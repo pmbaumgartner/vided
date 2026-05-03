@@ -230,6 +230,20 @@ Speed silent sections at a different rate:
 vided trim project-dir --silent-speed 12 --overwrite
 ```
 
+Show a small speed label on sped-up silent sections:
+
+```bash
+vided trim project-dir --speed-indicator --speed-indicator-corner top-right --overwrite
+```
+
+The badge includes a fast-forward icon, scales with the video resolution, and appears
+only when the sped-up section lasts at least one second in the output. To show it on
+shorter sped-up sections:
+
+```bash
+vided trim project-dir --speed-indicator --speed-indicator-min-seconds 0.5 --overwrite
+```
+
 Keep silent-section audio instead of muting it:
 
 ```bash
@@ -404,6 +418,21 @@ uv run ruff check
 The repo includes `tests/fixtures/media/realistic-speech-gaps.mp4`, a 90-second clip derived from NASA's public-domain `Universe (1976).webm`. It is tracked with Git LFS and has source/license notes in `tests/fixtures/media/realistic-speech-gaps.LICENSE.md`.
 
 Use this fixture for realistic trim, VAD, frame generation, render, and UI smoke tests. It has real narration plus pauses, so it is more useful than synthetic audio for checking editing behavior.
+
+For faster e2e tests, use `tests/fixtures/media/realistic-speech-gaps-short.mp4`, a 20-second excerpt from the same source with several speech ranges and pauses. Its source/license note is `tests/fixtures/media/realistic-speech-gaps-short.LICENSE.md`.
+
+Run the fixture e2e tests explicitly:
+
+```bash
+uv run --extra vad pytest --run-e2e -m e2e
+```
+
+Install the Playwright browser once before running browser e2e tests:
+
+```bash
+uv run playwright install chromium
+uv run --extra vad pytest --run-e2e -m browser --browser chromium
+```
 
 Run the CLI directly from source:
 

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vided</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Vided</h1>
+        <p id="projectMeta">Loading project…</p>
+      </div>
+      <div class="top-actions">
+        <span id="saveState" class="save-state" aria-live="polite">Saved</span>
+        <button id="saveButton" class="primary" type="button" hidden>Retry save</button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="viewer-panel">
+        <div class="canvas-wrap">
+          <canvas id="frameCanvas"></canvas>
+        </div>
+        <div class="draft-action-bar" id="draftActionBar">
+          <!-- Icons use Lucide path data, ISC licensed: https://lucide.dev/license -->
+          <div class="draft-action-meta" aria-label="Current frame and draft state">
+            <div class="meta-chip current-frame">
+              <svg class="meta-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
+                <circle cx="9" cy="9" r="2"></circle>
+                <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"></path>
+              </svg>
+              <span id="currentFrameLabel">Frame —</span>
+            </div>
+            <div class="meta-chip current-time">
+              <svg class="meta-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <span id="currentTimeLabel">—</span>
+            </div>
+            <div class="meta-chip draft-status" id="draftStatus">Ready</div>
+          </div>
+          <div class="draft-action-buttons">
+            <button id="setStartButton" type="button" aria-keyshortcuts="S">Set start <kbd>S</kbd></button>
+            <button id="saveDraftButton" type="button" aria-keyshortcuts="Enter">
+              Add redaction <kbd>Enter</kbd>
+            </button>
+            <button id="clearDraftButton" class="danger" type="button" aria-keyshortcuts="Escape">
+              Clear <kbd>Esc</kbd>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <section class="panel-card settings-card">
+          <h2>New redaction defaults</h2>
+          <div class="form-row">
+            <label>
+              Start buffer
+              <input id="bufferPreInput" type="number" min="0" step="0.1" value="0.5" />
+            </label>
+            <label>
+              End buffer
+              <input id="bufferPostInput" type="number" min="0" step="0.1" value="0.5" />
+            </label>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Blur strength</div>
+            <div class="segmented-control" id="blurStrengthControl" role="group" aria-label="Blur strength">
+              <button type="button" class="blur-option" data-blur-level="low">Low</button>
+              <button type="button" class="blur-option active" data-blur-level="medium">Medium</button>
+              <button type="button" class="blur-option" data-blur-level="high">High</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card selection-card">
+          <h2>Selection</h2>
+          <div id="selectionPanel" class="selection-panel"></div>
+        </section>
+
+        <section class="panel-card redaction-list-card">
+          <h2>Saved redactions</h2>
+          <div id="redactionList" class="redaction-list"></div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="filmstrip-shell">
+      <!-- Icons use Lucide path data, ISC licensed: https://lucide.dev/license -->
+      <button
+        id="filmstripScrollLeft"
+        class="filmstrip-nav filmstrip-nav-left"
+        type="button"
+        aria-label="Scroll thumbnails left"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="m15 18-6-6 6-6"></path>
+        </svg>
+      </button>
+      <div id="filmstrip" class="filmstrip"></div>
+      <button
+        id="filmstripScrollRight"
+        class="filmstrip-nav filmstrip-nav-right"
+        type="button"
+        aria-label="Scroll thumbnails right"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="m9 18 6-6-6-6"></path>
+        </svg>
+      </button>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
