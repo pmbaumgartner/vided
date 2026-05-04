@@ -7,10 +7,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import ImageFont
 
 from .errors import ValidationError
 from .ffmpeg import VideoInfo, ensure_tool, probe_media, run_command
+from .image_badge import DARK_BADGE_STYLE, LIGHT_BADGE_STYLE, render_text_badge
 from .project import (
     default_redactions,
     load_project,
@@ -201,52 +202,9 @@ def _write_speed_indicator_badge(
     short_edge = max(1, min(video_width, video_height))
     font_size = _clamp_int(short_edge * 0.04, 14, 52)
     font = _load_badge_font(font_size)
-    stroke_width = max(1, round(font_size * 0.08))
-    padding_x = max(8, round(font_size * 0.55))
-    padding_y = max(5, round(font_size * 0.35))
     display_label = _speed_indicator_display_label(label)
-    measure = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-    left, top, right, bottom = measure.textbbox(
-        (0, 0),
-        display_label,
-        font=font,
-        stroke_width=stroke_width,
-    )
-    text_width = int(math.ceil(right - left))
-    text_height = int(math.ceil(bottom - top))
-    width = text_width + padding_x * 2
-    height = text_height + padding_y * 2
-
-    if style == "dark":
-        box_fill = (0, 0, 0, 166)
-        box_outline = (255, 255, 255, 80)
-        text_fill = (255, 255, 255, 255)
-        stroke_fill = (0, 0, 0, 220)
-    else:
-        box_fill = (255, 255, 255, 178)
-        box_outline = (0, 0, 0, 84)
-        text_fill = (0, 0, 0, 255)
-        stroke_fill = (255, 255, 255, 230)
-
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle(
-        (0, 0, width - 1, height - 1),
-        radius=max(6, round(height * 0.22)),
-        fill=box_fill,
-        outline=box_outline,
-        width=1,
-    )
-    text_x = (width - text_width) / 2 - left
-    text_y = (height - text_height) / 2 - top
-    draw.text(
-        (text_x, text_y),
-        display_label,
-        font=font,
-        fill=text_fill,
-        stroke_width=stroke_width,
-        stroke_fill=stroke_fill,
-    )
+    badge_style = DARK_BADGE_STYLE if style == "dark" else LIGHT_BADGE_STYLE
+    image = render_text_badge(display_label, font, style=badge_style)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path, "PNG")

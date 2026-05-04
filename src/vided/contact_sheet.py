@@ -3,11 +3,12 @@ from __future__ import annotations
 import math
 import shutil
 from pathlib import Path
-from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
 from .ffmpeg import ensure_tool, probe_media, run_command
+from .frames import build_frame_extraction_command, resolve_frame_extraction_options
+from .image_badge import DARK_BADGE_STYLE, render_text_badge
 from .project import load_project, project_paths
 from .redactions import Redaction, load_redactions, render_redactions
 
@@ -56,30 +57,17 @@ def render_contact_sheet(
             f"Contact sheet already exists: {output}. Use --overwrite to replace it."
         )
 
-    frame_cfg: dict[str, Any] = cfg.get("frames", {})
-    interval_seconds = float(frame_cfg.get("interval_seconds", 1.0))
-    thumbnail_width = int(frame_cfg.get("thumbnail_width", 640))
-    if interval_seconds <= 0:
-        raise ValueError("frames.interval_seconds must be greater than 0")
-    if thumbnail_width <= 0:
-        raise ValueError("frames.thumbnail_width must be greater than 0")
+    options = resolve_frame_extraction_options(cfg, error_prefix="frames.")
 
     ensure_tool("ffmpeg")
     work_dir = p.work_dir / "contact-sheet"
     frame_pattern = work_dir / "frame_%06d.jpg"
-    fps = 1.0 / interval_seconds
-    cmd = [
-        "ffmpeg",
-        "-hide_banner",
-        "-y",
-        "-i",
-        str(source),
-        "-vf",
-        f"fps={fps:.8f},scale={thumbnail_width}:-2",
-        "-q:v",
-        "2",
-        str(frame_pattern),
-    ]
+    cmd = build_frame_extraction_command(
+        source,
+        frame_pattern,
+        options=options,
+        overwrite=True,
+    )
 
     if not dry_run:
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -98,7 +86,8 @@ def render_contact_sheet(
     info = probe_media(source)
     redactions = render_redactions(load_redactions(project_root))
     timestamps = [
-        min(index * interval_seconds, max(info.duration, 0.0)) for index in range(len(frames))
+        min(index * options.interval_seconds, max(info.duration, 0.0))
+        for index in range(len(frames))
     ]
     compose_contact_sheet(frames, timestamps=timestamps, redactions=redactions, output=output)
     return output
@@ -202,45 +191,11 @@ def _draw_timestamp_chip(
     label: str,
     font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
 ) -> None:
-    measure = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-    font_size = max(12, int(getattr(font, "size", 16)))
-    stroke_width = max(1, round(font_size * 0.08))
-    padding_x = max(8, round(font_size * 0.55))
-    padding_y = max(5, round(font_size * 0.35))
-    left, top, right, bottom = measure.textbbox(
-        (0, 0),
-        label,
-        font=font,
-        stroke_width=stroke_width,
-    )
-    text_width = int(math.ceil(right - left))
-    text_height = int(math.ceil(bottom - top))
-    chip_width = text_width + padding_x * 2
-    chip_height = text_height + padding_y * 2
+    chip = render_text_badge(label, font, style=DARK_BADGE_STYLE)
     inset = max(8, round(min(image_size) * 0.025))
     chip_x = image_origin[0] + inset
-    chip_y = image_origin[1] + image_size[1] - chip_height - inset
-
-    overlay = Image.new("RGBA", sheet.size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-    draw.rounded_rectangle(
-        (chip_x, chip_y, chip_x + chip_width - 1, chip_y + chip_height - 1),
-        radius=max(6, round(chip_height * 0.22)),
-        fill=(0, 0, 0, 166),
-        outline=(255, 255, 255, 80),
-        width=1,
-    )
-    text_x = chip_x + padding_x - left
-    text_y = chip_y + padding_y - top
-    draw.text(
-        (text_x, text_y),
-        label,
-        font=font,
-        fill=(255, 255, 255, 255),
-        stroke_width=stroke_width,
-        stroke_fill=(0, 0, 0, 220),
-    )
-    sheet.alpha_composite(overlay)
+    chip_y = image_origin[1] + image_size[1] - chip.height - inset
+    sheet.alpha_composite(chip, (chip_x, chip_y))
 
 
 def _format_seconds(seconds: float) -> str:
