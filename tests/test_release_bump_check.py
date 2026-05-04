@@ -198,6 +198,37 @@ def test_ci_source_files_pass_with_lockstep_bump(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
 
+def test_ci_source_files_pass_when_matching_tag_points_at_head(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
+    git(tmp_path, "switch", "-c", "feature")
+    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    write_project(tmp_path, "0.1.1")
+    git(tmp_path, "add", ".")
+    assert git(tmp_path, "commit", "-m", "change source").returncode == 0
+    assert git(tmp_path, "tag", "-a", "v0.1.1", "-m", "v0.1.1").returncode == 0
+
+    result = run_ci_check(tmp_path, base_ref)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_ci_source_files_reject_existing_tag_on_different_commit(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
+    assert git(tmp_path, "tag", "-a", "v0.1.1", "-m", "v0.1.1").returncode == 0
+    git(tmp_path, "switch", "-c", "feature")
+    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    write_project(tmp_path, "0.1.1")
+    git(tmp_path, "add", ".")
+    assert git(tmp_path, "commit", "-m", "change source").returncode == 0
+
+    result = run_ci_check(tmp_path, base_ref)
+
+    assert result.returncode == 1
+    assert "Tag 'v0.1.1' already exists" in result.stderr
+
+
 def test_ci_tests_docs_and_workflows_do_not_require_bump(tmp_path: Path) -> None:
     init_repo(tmp_path)
     base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()

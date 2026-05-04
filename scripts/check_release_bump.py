@@ -197,6 +197,19 @@ def tag_exists(tag_name: str) -> bool:
     return result.returncode == 0
 
 
+def ref_commit(ref: str) -> str | None:
+    result = git(["rev-parse", "--verify", f"{ref}^{{commit}}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def tag_points_at(tag_name: str, ref: str) -> bool:
+    tag_commit = ref_commit(f"refs/tags/{tag_name}")
+    target_commit = ref_commit(ref)
+    return tag_commit is not None and tag_commit == target_commit
+
+
 def format_staged_files(files: list[str]) -> str:
     shown_files = files[:12]
     lines = [f"  - {path}" for path in shown_files]
@@ -214,6 +227,7 @@ def require_release_bump_for_files(
     previous_version_label: str,
     current_version_label: str,
     files_label: str,
+    allowed_existing_tag_ref: str | None = None,
 ) -> None:
     files_requiring_bump = release_relevant_files(files, current_pyproject, previous_pyproject)
     if not files_requiring_bump:
@@ -253,7 +267,9 @@ def require_release_bump_for_files(
         )
 
     tag_name = f"v{current_version_text}"
-    if tag_exists(tag_name):
+    if tag_exists(tag_name) and not (
+        allowed_existing_tag_ref is not None and tag_points_at(tag_name, allowed_existing_tag_ref)
+    ):
         previous = f" Previous version: {previous_version_text}." if previous_version_text else ""
         raise CheckError(
             f"Tag {tag_name!r} already exists.{previous}\n"
@@ -290,6 +306,7 @@ def require_release_bump_between(base_ref: str, head_ref: str) -> None:
         previous_version_label="Base version",
         current_version_label="Head version",
         files_label="Release-relevant changed files",
+        allowed_existing_tag_ref=head_ref,
     )
 
 
