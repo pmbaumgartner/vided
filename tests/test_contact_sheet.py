@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from helpers import video_info, write_basic_project
+from helpers import BasicProject, video_info
 from vided import contact_sheet
 from vided.contact_sheet import (
     NORMAL_BORDER,
@@ -13,7 +13,7 @@ from vided.contact_sheet import (
     frame_overlaps_redaction,
     render_contact_sheet,
 )
-from vided.project import project_paths, write_json
+from vided.project import write_json
 from vided.redactions import Rect, Redaction
 
 
@@ -68,8 +68,8 @@ def test_compose_contact_sheet_highlights_redacted_frames(tmp_path) -> None:
         )
 
 
-def test_render_contact_sheet_requires_final_video(tmp_path) -> None:
-    project = write_basic_project(tmp_path / "project")
+def test_render_contact_sheet_requires_final_video(basic_project: BasicProject) -> None:
+    project = basic_project.root
 
     try:
         render_contact_sheet(project)
@@ -79,9 +79,9 @@ def test_render_contact_sheet_requires_final_video(tmp_path) -> None:
         raise AssertionError("missing final video should fail")
 
 
-def test_render_contact_sheet_refuses_existing_output(tmp_path) -> None:
-    project = write_basic_project(tmp_path / "project")
-    p = project_paths(project)
+def test_render_contact_sheet_refuses_existing_output(basic_project: BasicProject) -> None:
+    project = basic_project.root
+    p = basic_project.paths
     p.output_dir.mkdir()
     (p.output_dir / "final.mp4").write_bytes(b"final")
     output = p.output_dir / "contact-sheet.jpg"
@@ -95,9 +95,11 @@ def test_render_contact_sheet_refuses_existing_output(tmp_path) -> None:
         raise AssertionError("existing contact sheet should fail without overwrite")
 
 
-def test_render_contact_sheet_extracts_from_final_video(tmp_path, monkeypatch) -> None:
-    project = write_basic_project(tmp_path / "project")
-    p = project_paths(project)
+def test_render_contact_sheet_extracts_from_final_video(
+    basic_project: BasicProject, monkeypatch
+) -> None:
+    project = basic_project.root
+    p = basic_project.paths
     p.output_dir.mkdir()
     final = p.output_dir / "final.mp4"
     final.write_bytes(b"final")

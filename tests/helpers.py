@@ -2,12 +2,26 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import vided.trimmer as trimmer_module
 from vided.ffmpeg import VideoInfo
-from vided.project import write_json
-from vided.trimmer import TrimOptions, build_trim_command, plan_trim
+from vided.project import ProjectPaths, project_paths, write_json
+from vided.trimmer import TrimOptions, TrimSegment, build_trim_command, plan_trim
+
+
+@dataclass(frozen=True)
+class BasicProject:
+    root: Path
+    paths: ProjectPaths
+
+
+@dataclass(frozen=True)
+class GenerateFramesCall:
+    project_root: Path
+    kwargs: dict[str, object]
 
 
 def video_info(
@@ -94,6 +108,56 @@ def write_basic_project(
         },
     )
     return project
+
+
+def basic_project_at(
+    project: Path,
+    *,
+    trim_overrides: Mapping[str, Any] | None = None,
+    render_overrides: Mapping[str, Any] | None = None,
+) -> BasicProject:
+    root = write_basic_project(
+        project,
+        trim_overrides=trim_overrides,
+        render_overrides=render_overrides,
+    )
+    return BasicProject(root=root, paths=project_paths(root))
+
+
+def write_existing_frame_state(
+    project: Path,
+    *,
+    with_metadata: bool = True,
+    image: str = "frames/frame_000001.jpg",
+) -> Path:
+    p = project_paths(project)
+    frame_path = p.work_dir / image
+    frame_path.parent.mkdir(parents=True, exist_ok=True)
+    frame_path.write_bytes(b"jpg")
+    if with_metadata:
+        write_json(p.frames_json, {"frames": [{"image": image}]})
+    return p.frames_json
+
+
+def stub_generate_frames(
+    monkeypatch: Any, module: Any, frames_json: Path
+) -> list[GenerateFramesCall]:
+    calls: list[GenerateFramesCall] = []
+
+    def fake_generate_frames(project_root: Path, **kwargs: object) -> Path:
+        calls.append(GenerateFramesCall(project_root=project_root, kwargs=kwargs))
+        return frames_json
+
+    monkeypatch.setattr(module, "generate_frames", fake_generate_frames)
+    return calls
+
+
+def stub_trim_segments(monkeypatch: Any, *segments: TrimSegment) -> None:
+    monkeypatch.setattr(
+        trimmer_module,
+        "_trim_segments",
+        lambda *args, **kwargs: list(segments),
+    )
 
 
 def patch_probe_media(monkeypatch, module, **video_info_kwargs: Any) -> None:

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from helpers import (
+    BasicProject,
     build_trim_command_for_test,
     filtergraph_from,
     patch_probe_media,
@@ -196,8 +197,10 @@ def test_vad_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> Non
     assert "atempo=2,atempo=2,atempo=2,volume=0[a1]" in graph
 
 
-def test_vad_trim_command_preview_does_not_create_vad_report(tmp_path, monkeypatch) -> None:
-    project = write_basic_project(tmp_path / "project")
+def test_vad_trim_command_preview_does_not_create_vad_report(
+    basic_project: BasicProject, monkeypatch
+) -> None:
+    project = basic_project.root
     patch_probe_media(monkeypatch, trimmer, duration=10.0, fps=30.0)
 
     with pytest.raises(vad.ProjectError, match="VAD ranges not found or stale"):

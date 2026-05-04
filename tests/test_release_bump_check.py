@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import subprocess
 from pathlib import Path
+
+import pytest
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "check_release_bump.py"
 
@@ -70,19 +73,82 @@ def write_project(
     )
 
 
-def init_repo(repo: Path) -> None:
-    git(repo, "init", "-q")
-    git(repo, "branch", "-M", "main")
-    git(repo, "config", "user.email", "test@example.com")
-    git(repo, "config", "user.name", "Test User")
-    write_project(repo, "0.1.0")
-    repo.joinpath("src/vided").mkdir(parents=True)
-    repo.joinpath("src/vided/__init__.py").write_text("", encoding="utf-8")
-    repo.joinpath("README.md").write_text("initial\n", encoding="utf-8")
-    repo.joinpath("tests").mkdir()
-    repo.joinpath("tests/test_placeholder.py").write_text("def test_placeholder():\n    pass\n")
-    git(repo, "add", ".")
-    assert git(repo, "commit", "-m", "initial").returncode == 0
+@dataclass(frozen=True)
+class ReleaseRepo:
+    root: Path
+
+    def initialize(self) -> None:
+        self.git("init", "-q")
+        self.git("branch", "-M", "main")
+        self.git("config", "user.email", "test@example.com")
+        self.git("config", "user.name", "Test User")
+        write_project(self.root, "0.1.0")
+        self.root.joinpath("src/vided").mkdir(parents=True)
+        self.root.joinpath("src/vided/__init__.py").write_text("", encoding="utf-8")
+        self.root.joinpath("README.md").write_text("initial\n", encoding="utf-8")
+        self.root.joinpath("tests").mkdir()
+        self.root.joinpath("tests/test_placeholder.py").write_text(
+            "def test_placeholder():\n    pass\n"
+        )
+        self.add(".")
+        self.commit("initial")
+
+    def git(self, *args: str) -> subprocess.CompletedProcess[str]:
+        return git(self.root, *args)
+
+    def branch(self, name: str = "feature") -> None:
+        self.git("switch", "-c", name)
+
+    def base_ref(self) -> str:
+        return self.git("rev-parse", "HEAD").stdout.strip()
+
+    def change_source(self, content: str = "VALUE = 1\n") -> None:
+        self.root.joinpath("src/vided/__init__.py").write_text(content, encoding="utf-8")
+
+    def change_docs_and_tests(self) -> None:
+        self.root.joinpath("README.md").write_text("changed\n", encoding="utf-8")
+        self.root.joinpath("tests/test_placeholder.py").write_text(
+            "def test_placeholder():\n    assert 1\n",
+            encoding="utf-8",
+        )
+
+    def bump(
+        self,
+        version: str = "0.1.1",
+        *,
+        dependencies: list[str] | None = None,
+        dev_dependencies: list[str] | None = None,
+    ) -> None:
+        write_project(
+            self.root,
+            version,
+            dependencies=dependencies,
+            dev_dependencies=dev_dependencies,
+        )
+
+    def add(self, *paths: str) -> None:
+        self.git("add", *(paths or (".",)))
+
+    def commit(self, message: str = "change") -> None:
+        assert self.git("commit", "-m", message).returncode == 0
+
+    def tag(self, version: str = "0.1.1") -> None:
+        assert self.git("tag", "-a", f"v{version}", "-m", f"v{version}").returncode == 0
+
+    def run_check(self) -> subprocess.CompletedProcess[str]:
+        return run_check(self.root)
+
+    def run_ci_check(
+        self, base_ref: str, head_ref: str = "HEAD"
+    ) -> subprocess.CompletedProcess[str]:
+        return run_ci_check(self.root, base_ref, head_ref=head_ref)
+
+
+@pytest.fixture
+def release_repo(tmp_path: Path) -> ReleaseRepo:
+    repo = ReleaseRepo(tmp_path)
+    repo.initialize()
+    return repo
 
 
 def run_check(repo: Path) -> subprocess.CompletedProcess[str]:
@@ -109,74 +175,65 @@ def run_ci_check(
     )
 
 
-def test_source_files_require_staged_zerover_bump(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
-    git(tmp_path, "add", "src/vided/__init__.py")
+def test_source_files_require_staged_zerover_bump(release_repo: ReleaseRepo) -> None:
+    release_repo.change_source()
+    release_repo.add("src/vided/__init__.py")
 
-    result = run_check(tmp_path)
+    result = release_repo.run_check()
 
     assert result.returncode == 1
     assert "version was not bumped" in result.stderr
     assert "uv version --bump patch" in result.stderr
 
 
-def test_feature_branch_skips_zerover_bump_check(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    git(tmp_path, "switch", "-c", "feature")
-    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
-    git(tmp_path, "add", "src/vided/__init__.py")
+def test_feature_branch_skips_zerover_bump_check(release_repo: ReleaseRepo) -> None:
+    release_repo.branch()
+    release_repo.change_source()
+    release_repo.add("src/vided/__init__.py")
 
-    result = run_check(tmp_path)
-
-    assert result.returncode == 0, result.stderr
-
-
-def test_source_files_pass_with_staged_lockstep_bump(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
-    write_project(tmp_path, "0.1.1")
-    git(tmp_path, "add", ".")
-
-    result = run_check(tmp_path)
+    result = release_repo.run_check()
 
     assert result.returncode == 0, result.stderr
 
 
-def test_tests_docs_and_workflows_do_not_require_bump(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    tmp_path.joinpath("README.md").write_text("changed\n", encoding="utf-8")
-    tmp_path.joinpath("tests/test_placeholder.py").write_text(
-        "def test_placeholder():\n    assert 1\n"
-    )
-    tmp_path.joinpath(".github/workflows").mkdir(parents=True)
-    tmp_path.joinpath(".github/workflows/tests.yml").write_text("name: Tests\n")
-    git(tmp_path, "add", ".")
+def test_source_files_pass_with_staged_lockstep_bump(release_repo: ReleaseRepo) -> None:
+    release_repo.change_source()
+    release_repo.bump()
+    release_repo.add(".")
 
-    result = run_check(tmp_path)
+    result = release_repo.run_check()
 
     assert result.returncode == 0, result.stderr
 
 
-def test_dev_dependency_changes_do_not_require_bump(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    write_project(tmp_path, "0.1.0", dev_dependencies=["pytest>=8.0", "ruff>=0.8"])
-    git(tmp_path, "add", "pyproject.toml")
+def test_tests_docs_and_workflows_do_not_require_bump(release_repo: ReleaseRepo) -> None:
+    release_repo.change_docs_and_tests()
+    release_repo.root.joinpath(".github/workflows").mkdir(parents=True)
+    release_repo.root.joinpath(".github/workflows/tests.yml").write_text("name: Tests\n")
+    release_repo.add(".")
 
-    result = run_check(tmp_path)
+    result = release_repo.run_check()
 
     assert result.returncode == 0, result.stderr
 
 
-def test_ci_source_files_require_zerover_bump(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
-    git(tmp_path, "switch", "-c", "feature")
-    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
-    git(tmp_path, "add", "src/vided/__init__.py")
-    assert git(tmp_path, "commit", "-m", "change source").returncode == 0
+def test_dev_dependency_changes_do_not_require_bump(release_repo: ReleaseRepo) -> None:
+    release_repo.bump("0.1.0", dev_dependencies=["pytest>=8.0", "ruff>=0.8"])
+    release_repo.add("pyproject.toml")
 
-    result = run_ci_check(tmp_path, base_ref)
+    result = release_repo.run_check()
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_ci_source_files_require_zerover_bump(release_repo: ReleaseRepo) -> None:
+    base_ref = release_repo.base_ref()
+    release_repo.branch()
+    release_repo.change_source()
+    release_repo.add("src/vided/__init__.py")
+    release_repo.commit("change source")
+
+    result = release_repo.run_ci_check(base_ref)
 
     assert result.returncode == 1
     assert "Base version: 0.1.0" in result.stderr
@@ -184,84 +241,81 @@ def test_ci_source_files_require_zerover_bump(tmp_path: Path) -> None:
     assert "src/vided/__init__.py" in result.stderr
 
 
-def test_ci_source_files_pass_with_lockstep_bump(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
-    git(tmp_path, "switch", "-c", "feature")
-    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
-    write_project(tmp_path, "0.1.1")
-    git(tmp_path, "add", ".")
-    assert git(tmp_path, "commit", "-m", "change source").returncode == 0
+def test_ci_source_files_pass_with_lockstep_bump(release_repo: ReleaseRepo) -> None:
+    base_ref = release_repo.base_ref()
+    release_repo.branch()
+    release_repo.change_source()
+    release_repo.bump()
+    release_repo.add(".")
+    release_repo.commit("change source")
 
-    result = run_ci_check(tmp_path, base_ref)
-
-    assert result.returncode == 0, result.stderr
-
-
-def test_ci_source_files_pass_when_matching_tag_points_at_head(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
-    git(tmp_path, "switch", "-c", "feature")
-    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
-    write_project(tmp_path, "0.1.1")
-    git(tmp_path, "add", ".")
-    assert git(tmp_path, "commit", "-m", "change source").returncode == 0
-    assert git(tmp_path, "tag", "-a", "v0.1.1", "-m", "v0.1.1").returncode == 0
-
-    result = run_ci_check(tmp_path, base_ref)
+    result = release_repo.run_ci_check(base_ref)
 
     assert result.returncode == 0, result.stderr
 
 
-def test_ci_source_files_reject_existing_tag_on_different_commit(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
-    assert git(tmp_path, "tag", "-a", "v0.1.1", "-m", "v0.1.1").returncode == 0
-    git(tmp_path, "switch", "-c", "feature")
-    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
-    write_project(tmp_path, "0.1.1")
-    git(tmp_path, "add", ".")
-    assert git(tmp_path, "commit", "-m", "change source").returncode == 0
+def test_ci_source_files_pass_when_matching_tag_points_at_head(
+    release_repo: ReleaseRepo,
+) -> None:
+    base_ref = release_repo.base_ref()
+    release_repo.branch()
+    release_repo.change_source()
+    release_repo.bump()
+    release_repo.add(".")
+    release_repo.commit("change source")
+    release_repo.tag()
 
-    result = run_ci_check(tmp_path, base_ref)
+    result = release_repo.run_ci_check(base_ref)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_ci_source_files_reject_existing_tag_on_different_commit(
+    release_repo: ReleaseRepo,
+) -> None:
+    base_ref = release_repo.base_ref()
+    release_repo.tag()
+    release_repo.branch()
+    release_repo.change_source()
+    release_repo.bump()
+    release_repo.add(".")
+    release_repo.commit("change source")
+
+    result = release_repo.run_ci_check(base_ref)
 
     assert result.returncode == 1
     assert "Tag 'v0.1.1' already exists" in result.stderr
 
 
-def test_ci_tests_docs_and_workflows_do_not_require_bump(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
-    git(tmp_path, "switch", "-c", "feature")
-    tmp_path.joinpath("README.md").write_text("changed\n", encoding="utf-8")
-    tmp_path.joinpath("tests/test_placeholder.py").write_text(
-        "def test_placeholder():\n    assert 1\n"
-    )
-    git(tmp_path, "add", ".")
-    assert git(tmp_path, "commit", "-m", "change docs and tests").returncode == 0
+def test_ci_tests_docs_and_workflows_do_not_require_bump(
+    release_repo: ReleaseRepo,
+) -> None:
+    base_ref = release_repo.base_ref()
+    release_repo.branch()
+    release_repo.change_docs_and_tests()
+    release_repo.add(".")
+    release_repo.commit("change docs and tests")
 
-    result = run_ci_check(tmp_path, base_ref)
+    result = release_repo.run_ci_check(base_ref)
 
     assert result.returncode == 0, result.stderr
 
 
-def test_project_dependency_changes_require_bump(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    write_project(tmp_path, "0.1.0", dependencies=["Pillow>=10.1", "requests>=2.0"])
-    git(tmp_path, "add", "pyproject.toml")
+def test_project_dependency_changes_require_bump(release_repo: ReleaseRepo) -> None:
+    release_repo.bump("0.1.0", dependencies=["Pillow>=10.1", "requests>=2.0"])
+    release_repo.add("pyproject.toml")
 
-    result = run_check(tmp_path)
+    result = release_repo.run_check()
 
     assert result.returncode == 1
     assert "pyproject.toml" in result.stderr
 
 
-def test_non_zerover_version_fails(tmp_path: Path) -> None:
-    init_repo(tmp_path)
-    write_project(tmp_path, "1.0.0")
-    git(tmp_path, "add", "pyproject.toml", "uv.lock")
+def test_non_zerover_version_fails(release_repo: ReleaseRepo) -> None:
+    release_repo.bump("1.0.0")
+    release_repo.add("pyproject.toml", "uv.lock")
 
-    result = run_check(tmp_path)
+    result = release_repo.run_check()
 
     assert result.returncode == 1
     assert "0.MINOR.PATCH" in result.stderr

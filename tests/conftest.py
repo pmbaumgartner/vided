@@ -11,6 +11,7 @@ import threading
 
 import pytest
 
+from helpers import BasicProject, basic_project_at
 from vided.ffmpeg import VideoInfo, probe_media
 from vided.frames import generate_frames
 from vided.project import create_project
@@ -57,6 +58,11 @@ def realistic_short_fixture() -> Path:
     if REALISTIC_SHORT_FIXTURE.stat().st_size < 1024:
         pytest.skip(f"fixture appears to be a Git LFS pointer: {REALISTIC_SHORT_FIXTURE}")
     return REALISTIC_SHORT_FIXTURE
+
+
+@pytest.fixture
+def basic_project(tmp_path: Path) -> BasicProject:
+    return basic_project_at(tmp_path / "project")
 
 
 @pytest.fixture

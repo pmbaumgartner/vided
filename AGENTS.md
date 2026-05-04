@@ -12,6 +12,15 @@ Ensure `README.md` is updated when there are any core functionality changes if t
 
 Ensure the skill at `src/vided/skills/vided/SKILL.md` is updated when there are core functionality changes.
 
+## Publishing
+
+When asked to "commit and push" or "commit and push and publish" in this repo:
+
+- It is OK to commit directly on the current branch, including `main`.
+- Do not create a feature branch unless explicitly requested.
+- Push the current branch to `origin`.
+- "Publish" means push the branch; do not open a PR unless explicitly requested.
+
 ## Test Fixtures
 
 - `tests/fixtures/media/realistic-speech-gaps.mp4` is a Git LFS-tracked 90-second public-domain NASA clip derived from `Universe (1976).webm`.

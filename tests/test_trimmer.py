@@ -6,9 +6,11 @@ import struct
 from PIL import Image
 
 from helpers import (
+    BasicProject,
     build_trim_command_for_test,
     filtergraph_from,
     patch_probe_media,
+    stub_trim_segments,
     video_info,
     write_basic_project,
 )
@@ -91,16 +93,13 @@ def test_pcm_audio_levels_chunks_peak_amplitude_across_channels() -> None:
     assert levels == [1.0, 4000 / 32767.0]
 
 
-def test_ffmpeg_trim_command_uses_concat_segments(tmp_path, monkeypatch) -> None:
-    project = write_basic_project(tmp_path / "project")
+def test_ffmpeg_trim_command_uses_concat_segments(basic_project: BasicProject, monkeypatch) -> None:
+    project = basic_project.root
     patch_probe_media(monkeypatch, trimmer)
-    monkeypatch.setattr(
-        trimmer,
-        "_trim_segments",
-        lambda *args, **kwargs: [
-            trimmer.TrimSegment(start=0.0, end=2.0),
-            trimmer.TrimSegment(start=3.0, end=7.0, speed=8.0, mute_audio=True),
-        ],
+    stub_trim_segments(
+        monkeypatch,
+        trimmer.TrimSegment(start=0.0, end=2.0),
+        trimmer.TrimSegment(start=3.0, end=7.0, speed=8.0, mute_audio=True),
     )
 
     cmd = build_trim_command_for_test(project)
@@ -112,14 +111,12 @@ def test_ffmpeg_trim_command_uses_concat_segments(tmp_path, monkeypatch) -> None
     assert "concat=n=2:v=1:a=1[vout][aout]" in graph
 
 
-def test_ffmpeg_trim_command_outputs_only_filtered_media_streams(tmp_path, monkeypatch) -> None:
-    project = write_basic_project(tmp_path / "project")
+def test_ffmpeg_trim_command_outputs_only_filtered_media_streams(
+    basic_project: BasicProject, monkeypatch
+) -> None:
+    project = basic_project.root
     patch_probe_media(monkeypatch, trimmer)
-    monkeypatch.setattr(
-        trimmer,
-        "_trim_segments",
-        lambda *args, **kwargs: [trimmer.TrimSegment(start=0.0, end=10.0)],
-    )
+    stub_trim_segments(monkeypatch, trimmer.TrimSegment(start=0.0, end=10.0))
 
     cmd = build_trim_command_for_test(project)
     mapped_streams = [cmd[index + 1] for index, arg in enumerate(cmd[:-1]) if arg == "-map"]
@@ -147,13 +144,10 @@ def test_ffmpeg_trim_command_overlays_speed_indicator_on_sped_segments(
         },
     )
     patch_probe_media(monkeypatch, trimmer, duration=20.0)
-    monkeypatch.setattr(
-        trimmer,
-        "_trim_segments",
-        lambda *args, **kwargs: [
-            trimmer.TrimSegment(start=0.0, end=2.0),
-            trimmer.TrimSegment(start=3.0, end=15.0, speed=8.0, mute_audio=True),
-        ],
+    stub_trim_segments(
+        monkeypatch,
+        trimmer.TrimSegment(start=0.0, end=2.0),
+        trimmer.TrimSegment(start=3.0, end=15.0, speed=8.0, mute_audio=True),
     )
 
     cmd = build_trim_command_for_test(project)
@@ -196,13 +190,10 @@ def test_ffmpeg_trim_command_skips_speed_indicator_for_short_sped_segments(
         },
     )
     patch_probe_media(monkeypatch, trimmer)
-    monkeypatch.setattr(
-        trimmer,
-        "_trim_segments",
-        lambda *args, **kwargs: [
-            trimmer.TrimSegment(start=0.0, end=2.0),
-            trimmer.TrimSegment(start=3.0, end=7.0, speed=8.0, mute_audio=True),
-        ],
+    stub_trim_segments(
+        monkeypatch,
+        trimmer.TrimSegment(start=0.0, end=2.0),
+        trimmer.TrimSegment(start=3.0, end=7.0, speed=8.0, mute_audio=True),
     )
 
     cmd = build_trim_command_for_test(project)
