@@ -31,11 +31,11 @@ uvx vided doctor
 uvx vided init /path/to/input.mp4 --output-dir project-dir
 ```
 
-3. Trim silence. The default detector is usually enough for a first pass. Trimmed outputs
-   contain only rendered video and audio streams.
+3. Trim silence. Use `--overwrite` when rerunning trim so stale `work/trimmed.mp4` is
+   replaced. Trimmed outputs contain only rendered video and audio streams.
 
 ```bash
-uvx vided trim project-dir
+uvx vided trim project-dir --overwrite
 ```
 
 4. Open the annotation UI to review frames and draw rectangular redaction regions. If thumbnails are
