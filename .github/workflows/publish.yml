@@ -1,16 +1,20 @@
 name: Publish
 
 on:
+  pull_request:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
   group: publish-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
   test:
@@ -63,6 +67,7 @@ jobs:
   build:
     name: Build distributions
     needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -94,10 +99,10 @@ jobs:
         run: uv build --no-sources
 
       - name: Smoke test wheel
-        run: uv run --isolated --no-project --with dist/*.whl vided --help
+        run: uv run --isolated --no-project --with ./dist/*.whl vided --help
 
       - name: Smoke test source distribution
-        run: uv run --isolated --no-project --with dist/*.tar.gz vided --help
+        run: uv run --isolated --no-project --with ./dist/*.tar.gz vided --help
 
       - name: Upload distributions
         uses: actions/upload-artifact@v7
@@ -109,6 +114,7 @@ jobs:
   publish:
     name: Publish to PyPI
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
