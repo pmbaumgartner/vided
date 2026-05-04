@@ -11,6 +11,7 @@ from typing import Annotated, Literal
 import cyclopts
 from cyclopts import App, Parameter
 
+from ._version import get_version
 from .contact_sheet import render_contact_sheet
 from .errors import VidedError
 from .ffmpeg import ToolError, ensure_tool
@@ -100,7 +101,8 @@ app = App(
     name="vided",
     help="Simple local video silence speeder and rectangular blur redactor.",
     help_formatter="plain",
-    version_flags=[],
+    version=get_version,
+    version_flags=["--version", "-v"],
     result_action="return_int_as_exit_code_else_zero",
     print_error=False,
     exit_on_error=False,

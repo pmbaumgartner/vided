@@ -1,5 +1,6 @@
 """Public Python API for vided."""
 
+from ._version import get_version as _get_version
 from .contact_sheet import render_contact_sheet
 from .errors import (
     ExternalToolError,
@@ -41,7 +42,7 @@ from .trimmer import (
 )
 from .vad import VadSettings, normalize_detector, run_vad_detection
 
-__version__ = "0.1.7"
+__version__ = _get_version()
 
 __all__ = [
     "ExternalToolError",

@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from vided import cli
+from vided._version import get_version
 from vided.skill_installer import SkillInstallResult
 
 
@@ -70,13 +71,23 @@ def test_doctor_checks_only_ffmpeg_and_ffprobe(monkeypatch, capsys) -> None:
     assert "auto-editor" not in capsys.readouterr().out
 
 
-def test_top_level_help_omits_frames_command() -> None:
+def test_top_level_help_lists_public_commands_and_version_flags() -> None:
     help_text = cli.help_text()
 
     assert "frames:" not in help_text
     assert "ui:" in help_text
     assert "install-skill:" in help_text
     assert "validate:" not in help_text
+    assert "--version" in help_text
+    assert "-v" in help_text
+
+
+def test_version_flags_print_current_version(capsys) -> None:
+    assert cli.main(["--version"]) == 0
+    assert capsys.readouterr().out.strip() == get_version()
+
+    assert cli.main(["-v"]) == 0
+    assert capsys.readouterr().out.strip() == get_version()
 
 
 def test_ui_passes_frame_generation_options(monkeypatch) -> None:

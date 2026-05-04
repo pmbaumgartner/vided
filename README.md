@@ -51,6 +51,7 @@ Install dependencies and check the CLI:
 ```bash
 uv sync
 uv run vided --help
+uv run vided --version
 uv run vided doctor
 ```
 
@@ -225,6 +226,7 @@ Commands:
   doctor: Check external tool availability.
   install-skill: Install the packaged agent skill.
   --help, -h: Display this message and exit.
+  --version, -v: Display application version.
 ```
 
 ### `vided init --help`
