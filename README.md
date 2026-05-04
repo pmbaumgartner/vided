@@ -427,7 +427,11 @@ Install the pre-commit hook:
 uv run pre-commit install
 ```
 
-Every commit with staged file changes must bump the package version with zerover:
+Every commit with package source or release metadata changes must bump the package
+version with zerover. This includes staged changes under `src/` and published package
+metadata in `pyproject.toml`, such as runtime dependencies, entry points, Python
+version support, or build configuration. Tests, workflows, docs, scripts, dev
+dependencies, and `uv.lock`-only changes do not require a bump.
 
 ```bash
 uv version --bump patch

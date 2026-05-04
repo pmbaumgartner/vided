@@ -6,10 +6,31 @@ import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass
+from typing import Any
 
 PROJECT_FILE = "pyproject.toml"
 LOCK_FILE = "uv.lock"
 ZERO_VERSION_RE = re.compile(r"^0\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+PACKAGE_SOURCE_PREFIX = "src/"
+PROJECT_RELEASE_KEYS = {
+    "authors",
+    "classifiers",
+    "dependencies",
+    "description",
+    "dynamic",
+    "entry-points",
+    "gui-scripts",
+    "keywords",
+    "license",
+    "license-files",
+    "maintainers",
+    "name",
+    "optional-dependencies",
+    "readme",
+    "requires-python",
+    "scripts",
+    "urls",
+}
 
 
 class CheckError(Exception):
@@ -76,6 +97,56 @@ def project_name_and_version(pyproject_text: str) -> tuple[str, str]:
         raise CheckError(f"Could not read [project].name and [project].version: {error}") from error
 
 
+def pyproject(pyproject_text: str) -> dict[str, Any]:
+    try:
+        return tomllib.loads(pyproject_text)
+    except tomllib.TOMLDecodeError as error:
+        raise CheckError(f"Could not read {PROJECT_FILE}: {error}") from error
+
+
+def release_surface(pyproject_text: str) -> dict[str, Any]:
+    data = pyproject(pyproject_text)
+    project = data.get("project", {})
+    tool = data.get("tool", {})
+    return {
+        "build-system": data.get("build-system"),
+        "project": {key: project.get(key) for key in PROJECT_RELEASE_KEYS if key in project},
+        "tool": {"hatch": tool.get("hatch")},
+    }
+
+
+def version_changed(staged_pyproject: str, head_pyproject: str | None) -> bool:
+    if head_pyproject is None:
+        return True
+    _, staged_version = project_name_and_version(staged_pyproject)
+    _, head_version = project_name_and_version(head_pyproject)
+    return staged_version != head_version
+
+
+def pyproject_release_surface_changed() -> bool:
+    staged_pyproject = index_file(PROJECT_FILE)
+    head_pyproject = head_file(PROJECT_FILE)
+    if head_pyproject is None:
+        return True
+    return release_surface(staged_pyproject) != release_surface(head_pyproject)
+
+
+def release_relevant_files(files: list[str]) -> list[str]:
+    relevant_files = [
+        path
+        for path in files
+        if path.startswith(PACKAGE_SOURCE_PREFIX)
+        or (path == PROJECT_FILE and pyproject_release_surface_changed())
+    ]
+
+    if PROJECT_FILE in files:
+        staged_pyproject = index_file(PROJECT_FILE)
+        if version_changed(staged_pyproject, head_file(PROJECT_FILE)):
+            relevant_files.append(PROJECT_FILE)
+
+    return sorted(set(relevant_files))
+
+
 def lock_version(lock_text: str, project_name: str) -> str | None:
     try:
         lock = tomllib.loads(lock_text)
@@ -106,7 +177,8 @@ def format_staged_files(files: list[str]) -> str:
 
 def require_release_bump() -> None:
     files = staged_files()
-    if not files:
+    files_requiring_bump = release_relevant_files(files)
+    if not files_requiring_bump:
         return
 
     project_name, staged_version_text = project_name_and_version(index_file(PROJECT_FILE))
@@ -119,12 +191,12 @@ def require_release_bump() -> None:
         head_version = ZeroVersion.parse(head_version_text)
         if staged_version <= head_version:
             raise CheckError(
-                "Staged files changed, but the package version was not bumped.\n\n"
+                "Release-relevant staged files changed, but the package version was not bumped.\n\n"
                 f"Current version: {head_version_text}\n"
                 f"Staged version: {staged_version_text}\n\n"
-                "Staged files:\n"
-                f"{format_staged_files(files)}\n\n"
-                "Use zerover for every change:\n"
+                "Release-relevant staged files:\n"
+                f"{format_staged_files(files_requiring_bump)}\n\n"
+                "Use zerover for package source or release metadata changes:\n"
                 "  uv version --bump patch\n"
                 "  # or, for larger changes while still staying on major zero:\n"
                 "  uv version --bump minor\n"

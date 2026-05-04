@@ -17,9 +17,39 @@ def git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def write_project(repo: Path, version: str) -> None:
+def quoted_list(values: list[str]) -> str:
+    return "[" + ", ".join(f'"{value}"' for value in values) + "]"
+
+
+def write_project(
+    repo: Path,
+    version: str,
+    *,
+    dependencies: list[str] | None = None,
+    dev_dependencies: list[str] | None = None,
+) -> None:
+    if dependencies is None:
+        dependencies = ["Pillow>=10.1"]
+    if dev_dependencies is None:
+        dev_dependencies = ["pytest>=8.0"]
+
     repo.joinpath("pyproject.toml").write_text(
-        f'[project]\nname = "vided"\nversion = "{version}"\n',
+        "\n".join(
+            [
+                "[project]",
+                'name = "vided"',
+                f'version = "{version}"',
+                f"dependencies = {quoted_list(dependencies)}",
+                "",
+                "[dependency-groups]",
+                f"dev = {quoted_list(dev_dependencies)}",
+                "",
+                "[build-system]",
+                'requires = ["hatchling"]',
+                'build-backend = "hatchling.build"',
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     repo.joinpath("uv.lock").write_text(
@@ -45,7 +75,11 @@ def init_repo(repo: Path) -> None:
     git(repo, "config", "user.email", "test@example.com")
     git(repo, "config", "user.name", "Test User")
     write_project(repo, "0.1.0")
+    repo.joinpath("src/vided").mkdir(parents=True)
+    repo.joinpath("src/vided/__init__.py").write_text("", encoding="utf-8")
     repo.joinpath("README.md").write_text("initial\n", encoding="utf-8")
+    repo.joinpath("tests").mkdir()
+    repo.joinpath("tests/test_placeholder.py").write_text("def test_placeholder():\n    pass\n")
     git(repo, "add", ".")
     assert git(repo, "commit", "-m", "initial").returncode == 0
 
@@ -61,10 +95,10 @@ def run_check(repo: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_changed_files_require_staged_zerover_bump(tmp_path: Path) -> None:
+def test_source_files_require_staged_zerover_bump(tmp_path: Path) -> None:
     init_repo(tmp_path)
-    tmp_path.joinpath("README.md").write_text("changed\n", encoding="utf-8")
-    git(tmp_path, "add", "README.md")
+    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    git(tmp_path, "add", "src/vided/__init__.py")
 
     result = run_check(tmp_path)
 
@@ -73,9 +107,9 @@ def test_changed_files_require_staged_zerover_bump(tmp_path: Path) -> None:
     assert "uv version --bump patch" in result.stderr
 
 
-def test_changed_files_pass_with_staged_lockstep_bump(tmp_path: Path) -> None:
+def test_source_files_pass_with_staged_lockstep_bump(tmp_path: Path) -> None:
     init_repo(tmp_path)
-    tmp_path.joinpath("README.md").write_text("changed\n", encoding="utf-8")
+    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
     write_project(tmp_path, "0.1.1")
     git(tmp_path, "add", ".")
 
@@ -84,11 +118,46 @@ def test_changed_files_pass_with_staged_lockstep_bump(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_non_zerover_version_fails(tmp_path: Path) -> None:
+def test_tests_docs_and_workflows_do_not_require_bump(tmp_path: Path) -> None:
     init_repo(tmp_path)
     tmp_path.joinpath("README.md").write_text("changed\n", encoding="utf-8")
-    write_project(tmp_path, "1.0.0")
+    tmp_path.joinpath("tests/test_placeholder.py").write_text(
+        "def test_placeholder():\n    assert 1\n"
+    )
+    tmp_path.joinpath(".github/workflows").mkdir(parents=True)
+    tmp_path.joinpath(".github/workflows/tests.yml").write_text("name: Tests\n")
     git(tmp_path, "add", ".")
+
+    result = run_check(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_dev_dependency_changes_do_not_require_bump(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    write_project(tmp_path, "0.1.0", dev_dependencies=["pytest>=8.0", "ruff>=0.8"])
+    git(tmp_path, "add", "pyproject.toml")
+
+    result = run_check(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_project_dependency_changes_require_bump(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    write_project(tmp_path, "0.1.0", dependencies=["Pillow>=10.1", "requests>=2.0"])
+    git(tmp_path, "add", "pyproject.toml")
+
+    result = run_check(tmp_path)
+
+    assert result.returncode == 1
+    assert "pyproject.toml" in result.stderr
+
+
+def test_non_zerover_version_fails(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    write_project(tmp_path, "1.0.0")
+    git(tmp_path, "add", "pyproject.toml", "uv.lock")
 
     result = run_check(tmp_path)
 
