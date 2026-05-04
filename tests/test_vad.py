@@ -154,7 +154,7 @@ def test_vad_command_writes_vad_files_but_not_trimmed_video(tmp_path, monkeypatc
     project = write_basic_project(
         tmp_path / "project",
         trim_overrides={
-            "silero-vad": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
+            "vad": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
         },
     )
     source = project / "input" / "original.mp4"
@@ -183,11 +183,11 @@ def test_vad_command_writes_vad_files_but_not_trimmed_video(tmp_path, monkeypatc
     assert source.exists()
 
 
-def test_silero_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> None:
+def test_vad_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> None:
     project = write_basic_project(
         tmp_path / "project",
         trim_overrides={
-            "silero-vad": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
+            "vad": {"manual_keep_ranges": [{"start": 5.0, "end": 6.0}]},
         },
     )
     patch_probe_media(monkeypatch, trimmer, duration=10.0, fps=30.0)
@@ -202,7 +202,7 @@ def test_silero_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> 
 
     cmd = build_trim_command_for_test(
         project,
-        options=trimmer.TrimOptions(detector="silero-vad"),
+        options=trimmer.TrimOptions(detector="vad"),
     )
     graph = filtergraph_from(cmd)
 
@@ -211,14 +211,14 @@ def test_silero_trim_command_uses_vad_activity_ranges(tmp_path, monkeypatch) -> 
     assert "atempo=2,atempo=2,atempo=2,volume=0[a1]" in graph
 
 
-def test_silero_trim_command_preview_does_not_create_vad_report(tmp_path, monkeypatch) -> None:
+def test_vad_trim_command_preview_does_not_create_vad_report(tmp_path, monkeypatch) -> None:
     project = write_basic_project(tmp_path / "project")
     patch_probe_media(monkeypatch, trimmer, duration=10.0, fps=30.0)
 
     with pytest.raises(vad.ProjectError, match="VAD ranges not found or stale"):
         build_trim_command_for_test(
             project,
-            options=trimmer.TrimOptions(detector="silero-vad"),
+            options=trimmer.TrimOptions(detector="vad"),
         )
 
     assert not (project / "work" / "vad_ranges.json").exists()

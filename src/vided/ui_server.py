@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+from .frames import generate_frames
 from .project import project_paths, read_json, write_json
 from .redactions import validate_redaction_document
 
@@ -129,6 +130,23 @@ def create_server(
     return ThreadingHTTPServer((host, port), make_handler(project_root))
 
 
+def _has_frame_images(frames_dir: Path) -> bool:
+    return frames_dir.exists() and next(frames_dir.glob("frame_*.jpg"), None) is not None
+
+
+def ensure_ui_frames(project_root: Path) -> Path | None:
+    p = project_paths(project_root)
+    if not p.project_json.exists():
+        raise FileNotFoundError(f"Project not found: {p.project_json}")
+
+    has_images = _has_frame_images(p.frames_dir)
+    if p.frames_json.exists() and has_images:
+        return None
+
+    print("Frames not found. Generating thumbnails before opening the UI.")
+    return generate_frames(project_root, overwrite=has_images)
+
+
 def run_ui(
     project_root: Path,
     *,
@@ -136,11 +154,7 @@ def run_ui(
     port: int = 8765,
     open_browser: bool = True,
 ) -> None:
-    p = project_paths(project_root)
-    if not p.project_json.exists():
-        raise FileNotFoundError(f"Project not found: {p.project_json}")
-    if not p.frames_json.exists():
-        print("Warning: frames.json not found. Run `vided frames` before opening the UI.")
+    ensure_ui_frames(project_root)
 
     server = create_server(project_root, host=host, port=port)
     url = f"http://{host}:{port}/"

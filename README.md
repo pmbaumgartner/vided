@@ -1,55 +1,57 @@
 # Vided
 
-A small local tool for one-video screen-recording edits:
+Vided is a small local tool for editing one screen recording at a time.
 
-- cut short silent gaps and speed up longer silent sections
-- optionally mute those sped-up silent sections
-- generate one thumbnail every N seconds
-- draw fixed rectangular blur regions in a browser UI
+It can:
+
+- cut short silent gaps
+- speed up longer silent sections
+- optionally mute sped-up silent sections
+- generate thumbnails
+- mark fixed rectangular blur regions in a browser UI
 - render a debug preview with visible boxes
 - render the final blurred video with `ffmpeg`
 
-The design is intentionally file-based. Each project has a `project.json`, a `redactions.json`, generated thumbnails, generated filtergraphs, and rendered outputs.
+Everything is file-based and local. A project folder contains `project.json`,
+`redactions.json`, generated thumbnails, generated filtergraphs, and rendered outputs.
 
-## What this is best for
+## Best fit
 
-This is meant for mostly static screen recordings where the sensitive area stays in a predictable part of the screen, such as an email address, account ID, token, URL bar, sidebar, or terminal pane.
+Use Vided for mostly static screen recordings where the sensitive area stays in a
+predictable part of the screen:
 
-It is not a tracker. If the thing you need to hide moves around, create multiple redactions across smaller time ranges.
+- email addresses
+- account IDs
+- tokens
+- URL bars
+- sidebars
+- terminal panes
+
+Vided is not a tracker. If the thing you need to hide moves, create multiple
+redactions across smaller time ranges.
 
 ## Requirements
 
-You need these available on your `PATH`:
+For video work:
 
 - `ffmpeg`
 - `ffprobe`
+
+For local development and source installs:
+
+- Python 3.11 or newer
 - `uv`
 
-The project requires Python 3.11 or newer but does not pin a specific interpreter version.
-
-Speech-based trimming is optional. To use the Silero VAD detector locally, install the
-ONNX Runtime extra:
+Speech-based trimming with VAD is optional. Install the ONNX Runtime extra when you
+need it:
 
 ```bash
 uv sync --extra vad
 ```
 
-## Install
+## Run from this repo
 
-After the package is published to PyPI:
-
-```bash
-uv tool install vided
-vided --help
-```
-
-For one-off use without installing:
-
-```bash
-uvx vided --help
-```
-
-For local development from this folder:
+Install dependencies and check the CLI:
 
 ```bash
 uv sync
@@ -57,54 +59,40 @@ uv run vided --help
 uv run vided doctor
 ```
 
-## End-to-end usage
+Run the CLI module directly:
 
-Create a one-video project:
+```bash
+uv run python -m vided --help
+```
+
+After the package is published to PyPI, install it as a tool:
+
+```bash
+uv tool install vided
+vided --help
+```
+
+For one-off use after publishing:
+
+```bash
+uvx vided --help
+```
+
+## Quick start
+
+Create a project:
 
 ```bash
 vided init /path/to/original-recording.mp4 --output-dir my-recording-project
 ```
 
-If you omit the output directory, `init` creates one from the input filename, such as
+If you omit `--output-dir`, `init` creates a folder from the input filename, such as
 `original-recording`.
 
-Run the silence trim pass:
+Trim silence:
 
 ```bash
 vided trim my-recording-project
-```
-
-The default trim behavior is:
-
-```text
-short silent sections: cut
-silent sections 1.5s or longer: speed:8,volume:0
-normal sections: nil
-margin: 0.2s
-smooth: 0.2s,0.1s
-audio threshold: 0.04
-```
-
-So short pauses between speaking sections disappear, long waiting periods are sped up,
-and sped-up silent audio is muted. Speech sections stay at normal speed.
-The speech/silence map is built from ffmpeg-decoded audio levels, then the final
-trimmed video is rendered with ffmpeg.
-
-For speech-only activity detection, run Silero VAD first or let `trim` create its
-range file on demand:
-
-```bash
-vided vad my-recording-project
-vided trim my-recording-project --detector silero --overwrite
-```
-
-This writes `work/vad.wav` and `work/vad_ranges.json`, then uses a bundled 16 kHz
-Silero ONNX model with the same ffmpeg trim renderer as the default audio-level detector.
-
-Generate thumbnails from the trimmed video:
-
-```bash
-vided frames my-recording-project
 ```
 
 Open the annotation UI:
@@ -113,6 +101,9 @@ Open the annotation UI:
 vided ui my-recording-project
 ```
 
+If thumbnails are missing, `ui` generates them from `work/trimmed.mp4` before opening
+the browser.
+
 In the UI:
 
 1. Click a thumbnail in the bottom filmstrip.
@@ -120,7 +111,7 @@ In the UI:
 3. Drag a rectangle in the large frame view.
 4. Click the thumbnail where the blur should end.
 5. Click **Add redaction**.
-6. Watch the save status in the top bar; failed autosaves show a retry button.
+6. Wait for the save status in the top bar.
 
 Render a debug preview first:
 
@@ -128,7 +119,7 @@ Render a debug preview first:
 vided render my-recording-project --debug --overwrite
 ```
 
-The debug output goes here:
+The debug output is:
 
 ```text
 my-recording-project/output/debug-preview.mp4
@@ -140,15 +131,41 @@ Render the final blurred video:
 vided render my-recording-project --overwrite
 ```
 
-The final output goes here:
+The final output is:
 
 ```text
 my-recording-project/output/final.mp4
 ```
 
-## Project folder layout
+## Trim behavior
 
-After running the full flow, a project looks like this:
+The default trim mode is `hybrid`:
+
+```text
+detector: audio
+short silent sections: cut
+silent sections 1.5s or longer: speed:8,volume:0
+normal sections: keep
+margin: 0.2s
+smooth: 0.2s,0.1s
+audio threshold: 0.04
+```
+
+Short pauses disappear. Long waits are sped up and muted. Speech stays at normal speed.
+The default detector uses ffmpeg-decoded audio levels.
+
+To use VAD instead:
+
+```bash
+vided trim my-recording-project --detector vad --overwrite
+```
+
+This creates or refreshes `work/vad.wav` and `work/vad_ranges.json` as needed, then
+runs the same ffmpeg trim renderer.
+
+## Project layout
+
+After the full flow, a project looks like this:
 
 ```text
 my-recording-project/
@@ -171,31 +188,17 @@ my-recording-project/
     final.mp4
 ```
 
-## Technical design
+`vad.wav` and `vad_ranges.json` exist only after using VAD.
 
-The core pipeline keeps every step file-based and local:
+## Commands
 
-```text
-original video
-  -> audio-level or optional Silero VAD activity detection
-  -> ffmpeg-backed speed/mute trim pass
-  -> work/trimmed.mp4
-  -> ffmpeg thumbnail generation
-  -> browser rectangle annotations
-  -> redactions.json
-  -> ffmpeg debug preview
-  -> ffmpeg final blurred render
-```
+The normal workflow uses:
 
-The main simplification is that redactions are created against the trimmed video. That keeps all redaction timestamps in the same timeline as the debug and final renders.
-
-The default `audio` detector classifies activity from ffmpeg-decoded audio levels. The optional `silero` detector uses the bundled 16 kHz Silero ONNX model through ONNX Runtime and writes `work/vad_ranges.json` for inspection. Both detectors feed the same ffmpeg trim renderer.
-
-The annotation UI has a horizontally scrolling filmstrip and a larger canvas view. The saved rectangle is converted to real video pixels before writing `redactions.json`.
-
-Debug rendering uses the same redaction timing and coordinates as final rendering, but draws visible boxes instead of blur so you can review placement before producing `output/final.mp4`.
-
-## CLI commands
+- `init`
+- `trim`
+- `ui`
+- `render`
+- `doctor`
 
 Check dependencies:
 
@@ -209,9 +212,7 @@ Create a project:
 vided init input.mp4
 ```
 
-This creates a folder named from the input video, such as `input`.
-
-Choose a project folder name:
+Choose a project folder:
 
 ```bash
 vided init input.mp4 project-dir
@@ -224,84 +225,52 @@ Symlink the original instead of copying it:
 vided init input.mp4 project-dir --symlink
 ```
 
-Speed silent sections at a different rate:
+Run the default trim pass:
+
+```bash
+vided trim project-dir --overwrite
+```
+
+Use a different trim mode:
+
+```bash
+vided trim project-dir --mode cut --overwrite
+vided trim project-dir --mode speed --overwrite
+vided trim project-dir --mode keep --overwrite
+```
+
+Tune silence handling:
 
 ```bash
 vided trim project-dir --silent-speed 12 --overwrite
+vided trim project-dir --no-mute-silent-audio --overwrite
+vided trim project-dir --smooth 0.2s,0.1s --overwrite
 ```
 
-Show a small speed label on sped-up silent sections:
+Show a speed badge on sped-up sections:
 
 ```bash
 vided trim project-dir --speed-indicator --speed-indicator-corner top-right --overwrite
 ```
 
-The badge includes a fast-forward icon, scales with the video resolution, and appears
-only when the sped-up section lasts at least one second in the output. To show it on
-shorter sped-up sections:
+The badge appears only when the sped-up section lasts at least one second in the
+output. To show it on shorter sped-up sections:
 
 ```bash
 vided trim project-dir --speed-indicator --speed-indicator-min-seconds 0.5 --overwrite
 ```
 
-Keep silent-section audio instead of muting it:
+Use VAD:
 
 ```bash
-vided trim project-dir --no-mute-silent-audio --overwrite
+vided trim project-dir --detector vad --overwrite
 ```
 
-Cut silence instead of speeding it up:
-
-```bash
-vided trim project-dir --mode cut --overwrite
-```
-
-Use the older behavior where every silent section is sped up:
-
-```bash
-vided trim project-dir --mode speed --overwrite
-```
-
-Use Silero VAD instead of audio levels:
-
-```bash
-vided trim project-dir --detector silero --overwrite
-```
-
-Inspect or refresh Silero VAD ranges without trimming:
-
-```bash
-vided vad project-dir
-```
-
-Tune trim smoothing:
-
-```bash
-vided trim project-dir --smooth 0.2s,0.1s --overwrite
-```
-
-Generate denser thumbnails:
+Generate denser or larger thumbnails before opening the UI:
 
 ```bash
 vided frames project-dir --interval 0.5 --overwrite
-```
-
-Use larger thumbnails for more precise rectangle placement:
-
-```bash
 vided frames project-dir --thumbnail-width 960 --overwrite
-```
-
-Print the trim command that would be run:
-
-```bash
-vided trim-command project-dir
-```
-
-Validate `redactions.json`:
-
-```bash
-vided validate project-dir
 ```
 
 Render to a custom path:
@@ -310,9 +279,33 @@ Render to a custom path:
 vided render project-dir --output output/my-final.mp4 --overwrite
 ```
 
-## Redaction data model
+`trim`, `frames`, and `render` also support `--dry-run`.
 
-The browser writes `redactions.json`. Each redaction has selected times, effective times, a video-pixel rectangle, and a style.
+## Technical design
+
+The pipeline is:
+
+```text
+original video
+  -> audio-level or optional VAD activity detection
+  -> ffmpeg-backed speed/mute trim pass
+  -> work/trimmed.mp4
+  -> ffmpeg thumbnail generation
+  -> browser rectangle annotations
+  -> redactions.json
+  -> ffmpeg debug preview
+  -> ffmpeg final blurred render
+```
+
+Redactions are created against the trimmed video. That keeps all redaction timestamps
+in the same timeline as the debug and final renders.
+
+The UI stores rectangles in real video pixels, not thumbnail pixels.
+
+## Redaction data
+
+The browser writes `redactions.json`. Each redaction stores selected times, buffered
+effective times, a video-pixel rectangle, and a style:
 
 ```json
 {
@@ -338,9 +331,7 @@ The browser writes `redactions.json`. Each redaction has selected times, effecti
 }
 ```
 
-The rectangle is stored in real video pixels, not thumbnail pixels. The UI converts from the displayed thumbnail coordinates to video coordinates.
-
-## Rendering approach
+## Rendering
 
 For each blur redaction, the renderer generates an ffmpeg filtergraph that:
 
@@ -349,23 +340,14 @@ For each blur redaction, the renderer generates an ffmpeg filtergraph that:
 3. applies `boxblur` to the crop
 4. overlays the blurred crop back onto the base video during the redaction time range
 
-The generated filtergraph is written to:
+Generated filtergraphs are written to:
 
 ```text
 work/filtergraph.txt
-```
-
-The debug graph is written to:
-
-```text
 work/filtergraph.debug.txt
 ```
 
-This makes ffmpeg failures much easier to inspect.
-
-## Output quality
-
-The final render must re-encode the video because blur is a video filter. The default render settings are intentionally high quality:
+The final render must re-encode video because blur is a video filter. Defaults:
 
 ```json
 {
@@ -377,27 +359,25 @@ The final render must re-encode the video because blur is a video filter. The de
 }
 ```
 
-Lower CRF means higher quality and larger files. For very high quality, edit `project.json` and try CRF `12` or `14`. For smaller files, try CRF `18` to `23`.
+Lower CRF means higher quality and larger files. Try CRF `12` or `14` for very high
+quality, or `18` to `23` for smaller files.
 
-Audio is stream-copied during the redaction render. The silence-speeding and silent-section muting happen during the trim pass.
+Audio is stream-copied during the redaction render. Silence speeding and muting happen
+during the trim pass.
 
-## Current limitations
+## Limitations
 
-Fixed rectangles only. There are no keyframed rectangles and no object tracking.
-
-Annotations happen on the trimmed video. This avoids timestamp-mapping complexity, but it means changing the trim settings later requires regenerating thumbnails and reviewing redactions.
-
-The UI does not include a video preview. It uses frame thumbnails plus debug render.
-
-The frame times are approximate based on the configured thumbnail interval. This is fine for broad redactions with buffers, but not frame-perfect editing.
-
-Rotation metadata and unusual pixel aspect ratios are not normalized in this skeleton. For normal screen recordings this is usually fine.
-
-Blur is implemented. Solid black redaction is partially supported by the renderer if you hand-edit `style.type` to `solid`, but the UI only creates blur redactions.
-
-The local UI server is intentionally simple and binds to `127.0.0.1` by default. Do not expose it to the public internet.
-
-Open future improvements include keyframed rectangles for moving targets, a video scrubber preview, frame-accurate thumbnail timestamp metadata, solid-fill redactions from the UI, better handling for rotated videos and non-standard pixel aspect ratios, and optional audio redaction ranges.
+- Fixed rectangles only. There are no keyframed rectangles or object tracking.
+- Annotations happen on the trimmed video. Changing trim settings later means
+  regenerating thumbnails and reviewing redactions.
+- The UI uses frame thumbnails plus debug render. It does not include a video preview.
+- Frame times are based on the thumbnail interval. This is fine for broad redactions
+  with buffers, but not frame-perfect editing.
+- Rotation metadata and unusual pixel aspect ratios are not normalized.
+- Blur is implemented in the UI. Solid redaction is partially supported by the renderer
+  if you hand-edit `style.type` to `solid`.
+- The local UI server binds to `127.0.0.1` by default. Do not expose it to the public
+  internet.
 
 ## Development
 
@@ -407,35 +387,33 @@ Run tests:
 uv run pytest
 ```
 
-Run linting:
+Format, lint, and type-check:
 
 ```bash
-uv run ruff check
+uv run ruff format src tests
+uv run ruff check src tests
+uv run ty check src tests
 ```
 
-### Realistic media fixture
+### Realistic media fixtures
 
-The repo includes `tests/fixtures/media/realistic-speech-gaps.mp4`, a 90-second clip derived from NASA's public-domain `Universe (1976).webm`. It is tracked with Git LFS and has source/license notes in `tests/fixtures/media/realistic-speech-gaps.LICENSE.md`.
+The repo includes two Git LFS-tracked public-domain NASA fixtures:
 
-Use this fixture for realistic trim, VAD, frame generation, render, and UI smoke tests. It has real narration plus pauses, so it is more useful than synthetic audio for checking editing behavior.
+- `tests/fixtures/media/realistic-speech-gaps.mp4`
+- `tests/fixtures/media/realistic-speech-gaps-short.mp4`
 
-For faster e2e tests, use `tests/fixtures/media/realistic-speech-gaps-short.mp4`, a 20-second excerpt from the same source with several speech ranges and pauses. Its source/license note is `tests/fixtures/media/realistic-speech-gaps-short.LICENSE.md`.
+Use them for realistic trim, VAD, frame generation, render, and UI smoke tests. Source
+and license notes live beside each fixture as `*.LICENSE.md`.
 
-Run the fixture e2e tests explicitly:
+Run fixture e2e tests:
 
 ```bash
 uv run --extra vad pytest --run-e2e -m e2e
 ```
 
-Install the Playwright browser once before running browser e2e tests:
+Install the Playwright browser once before browser e2e tests:
 
 ```bash
 uv run playwright install chromium
 uv run --extra vad pytest --run-e2e -m browser --browser chromium
-```
-
-Run the CLI directly from source:
-
-```bash
-uv run python -m vided --help
 ```

@@ -26,7 +26,7 @@ def test_realistic_fixture_compares_default_and_vad_trim(
     pytest.importorskip("onnxruntime")
 
     durations: dict[str, float] = {}
-    for detector in ("audio", "silero"):
+    for detector in ("audio", "vad"):
         project = tmp_path / detector
         create_project(realistic_short_fixture, project, copy_input=False)
         plan = plan_trim(project, options=TrimOptions(detector=detector), allow_vad_detection=True)
@@ -35,13 +35,13 @@ def test_realistic_fixture_compares_default_and_vad_trim(
         assert output.exists()
         durations[detector] = probe_media(output).duration
 
-    report_path = tmp_path / "silero" / "work" / "vad_ranges.json"
+    report_path = tmp_path / "vad" / "work" / "vad_ranges.json"
     report = json.loads(report_path.read_text(encoding="utf-8"))
 
     assert len(report["speech_ranges"]) >= 5
     assert 15.0 < durations["audio"] < 18.5
-    assert 11.0 < durations["silero"] < 14.0
-    assert durations["silero"] < durations["audio"] - 2.0
+    assert 11.0 < durations["vad"] < 14.0
+    assert durations["vad"] < durations["audio"] - 2.0
 
 
 @pytest.mark.e2e

@@ -32,7 +32,7 @@ def _add_trim_detector_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--detector",
         "--engine",
-        choices=["audio", "silero-vad", "silero", "vad"],
+        choices=["audio", "vad"],
         default=None,
         help="Detector used to classify normal-speed sections.",
     )
@@ -64,12 +64,21 @@ def _add_speed_indicator_options(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_diagnostic_parser(subparsers, name: str) -> argparse.ArgumentParser:
+    parser = subparsers.add_parser(name)
+    # Keep diagnostic commands parseable without putting them in top-level help.
+    subparsers._choices_actions = [
+        action for action in subparsers._choices_actions if action.dest != name
+    ]
+    return parser
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="vided",
         description="Simple local video silence speeder and rectangular blur redactor.",
     )
-    sub = parser.add_subparsers(dest="command")
+    sub = parser.add_subparsers(dest="command", metavar="command")
 
     init = sub.add_parser("init", help="Create a one-video project folder.")
     init.add_argument("source", type=Path, help="Input video path.")
@@ -113,12 +122,12 @@ def build_parser() -> argparse.ArgumentParser:
     trim.add_argument("--dry-run", action="store_true")
     trim.set_defaults(func=cmd_trim)
 
-    vad = sub.add_parser("vad", help="Detect speech ranges with Silero VAD.")
+    vad = _add_diagnostic_parser(sub, "vad")
     vad.add_argument("project", type=Path)
     _add_vad_options(vad)
     vad.set_defaults(func=cmd_vad)
 
-    frames = sub.add_parser("frames", help="Generate frame thumbnails from the trimmed video.")
+    frames = sub.add_parser("frames", help="Generate or refresh frame thumbnails.")
     frames.add_argument("project", type=Path)
     frames.add_argument("--interval", type=float, default=None, help="Seconds between thumbnails.")
     frames.add_argument("--thumbnail-width", type=int, default=None)
@@ -126,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     frames.add_argument("--dry-run", action="store_true")
     frames.set_defaults(func=cmd_frames)
 
-    ui = sub.add_parser("ui", help="Start the local annotation UI.")
+    ui = sub.add_parser("ui", help="Start the local annotation UI, generating frames if needed.")
     ui.add_argument("project", type=Path)
     ui.add_argument("--host", default="127.0.0.1")
     ui.add_argument("--port", type=int, default=8765)
@@ -143,14 +152,14 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--dry-run", action="store_true")
     render.set_defaults(func=cmd_render)
 
-    validate = sub.add_parser("validate", help="Validate redactions.json.")
+    validate = _add_diagnostic_parser(sub, "validate")
     validate.add_argument("project", type=Path)
     validate.set_defaults(func=cmd_validate)
 
     doctor = sub.add_parser("doctor", help="Check external tool availability.")
     doctor.set_defaults(func=cmd_doctor)
 
-    preview = sub.add_parser("trim-command", help="Print the trim command for this project.")
+    preview = _add_diagnostic_parser(sub, "trim-command")
     preview.add_argument("project", type=Path)
     _add_trim_detector_options(preview)
     preview.add_argument("--mode", choices=["hybrid", "speed", "cut", "keep"], default=None)

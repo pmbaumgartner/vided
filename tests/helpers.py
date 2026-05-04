@@ -63,7 +63,7 @@ def write_basic_project(
                 "style": "dark",
                 "min_display_seconds": 1.0,
             },
-            "silero-vad": {
+            "vad": {
                 "threshold": 0.5,
                 "min_speech_duration_ms": 250,
                 "min_silence_duration_ms": 300,

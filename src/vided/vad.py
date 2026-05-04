@@ -50,9 +50,9 @@ def normalize_detector(value: str | None) -> str:
     detector = (value or "audio").strip().lower()
     if detector in {"audio", "level", "levels"}:
         return "audio"
-    if detector in {"silero", "vad", "silero-vad"}:
-        return "silero-vad"
-    raise ValidationError("trim detector must be one of: audio, silero-vad")
+    if detector == "vad":
+        return "vad"
+    raise ValidationError("trim detector must be one of: audio, vad")
 
 
 def parse_manual_keep_ranges(raw: Any) -> tuple[TimeRange, ...]:
@@ -90,10 +90,6 @@ def vad_settings_from_trim_config(
     vad_cfg: dict[str, Any] = {}
     if isinstance(trim_cfg.get("vad"), dict):
         vad_cfg.update(trim_cfg["vad"])
-    if isinstance(trim_cfg.get("silero"), dict):
-        vad_cfg.update(trim_cfg["silero"])
-    if isinstance(trim_cfg.get("silero-vad"), dict):
-        vad_cfg.update(trim_cfg["silero-vad"])
 
     settings = VadSettings(
         threshold=float(threshold if threshold is not None else vad_cfg.get("threshold", 0.5)),
@@ -327,7 +323,7 @@ def build_vad_report(
     p = project_paths(project_root)
     return {
         "schema_version": 1,
-        "detector": "silero-vad",
+        "detector": "vad",
         "source_video": _project_relative(source_video, p.root),
         "audio_source": _project_relative(audio_source, p.root) if audio_source else None,
         "video_duration_seconds": round(duration, 6),
@@ -488,7 +484,7 @@ def _report_matches(
     media_info: VideoInfo,
     settings: VadSettings,
 ) -> bool:
-    if report.get("detector") != "silero-vad":
+    if report.get("detector") != "vad":
         return False
     if report.get("source_video") != _project_relative(source, root):
         return False

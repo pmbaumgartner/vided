@@ -93,7 +93,7 @@ def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
                 "trim",
                 "project-dir",
                 "--detector",
-                "silero-vad",
+                "vad",
                 "--vad-threshold",
                 "0.4",
                 "--vad-min-speech-ms",
@@ -117,7 +117,7 @@ def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
     )
     assert calls["project"] == Path("project-dir")
     options = calls["kwargs"]["options"]
-    assert options.detector == "silero-vad"
+    assert options.detector == "vad"
     assert options.vad.threshold == 0.4
     assert options.vad.min_speech_duration_ms == 200
     assert options.vad.min_silence_duration_ms == 350

@@ -37,8 +37,8 @@ def test_default_project_config_uses_hybrid_trim_mode() -> None:
         "style": "dark",
         "min_display_seconds": 1.0,
     }
-    assert cfg["trim"]["silero-vad"]["threshold"] == 0.5
-    assert cfg["trim"]["silero-vad"]["manual_keep_ranges"] == []
+    assert cfg["trim"]["vad"]["threshold"] == 0.5
+    assert cfg["trim"]["vad"]["manual_keep_ranges"] == []
 
 
 def test_speed_indicator_badge_generates_rgba_png(tmp_path) -> None:
