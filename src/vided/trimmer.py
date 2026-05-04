@@ -93,6 +93,26 @@ class OperationResult:
     wrote_files: bool
 
 
+def build_trim_timeline(segments: list[TrimSegment]) -> dict[str, Any]:
+    output_start = 0.0
+    rendered: list[dict[str, float | bool]] = []
+    for segment in segments:
+        speed = segment.speed if segment.speed > 0 else 1.0
+        output_end = output_start + (segment.duration / speed)
+        rendered.append(
+            {
+                "source_start": round(segment.start, 6),
+                "source_end": round(segment.end, 6),
+                "output_start": round(output_start, 6),
+                "output_end": round(output_end, 6),
+                "speed": round(speed, 6),
+                "mute_audio": segment.mute_audio,
+            }
+        )
+        output_start = output_end
+    return {"schema_version": 1, "segments": rendered}
+
+
 _SPEED_INDICATOR_CORNERS = {"top-left", "top-right", "bottom-left", "bottom-right"}
 _SPEED_INDICATOR_STYLES = {"dark", "light"}
 _SPEED_INDICATOR_ICON = "\u25b6\u25b6"
@@ -832,6 +852,7 @@ def _write_trim_metadata(plan: TrimPlan) -> None:
     info = probe_media(plan.output)
     cfg = dict(plan.config)
     cfg["trimmed_video"] = info.as_dict()
+    cfg["trim_timeline"] = build_trim_timeline(plan.segments)
     save_project(plan.project_root, cfg)
 
     p = project_paths(plan.project_root, config=cfg)

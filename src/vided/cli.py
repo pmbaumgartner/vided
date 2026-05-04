@@ -12,6 +12,8 @@ import cyclopts
 from cyclopts import App, Parameter
 
 from ._version import get_version
+from .audio_presets import list_audio_presets
+from .audio_preview import render_audio_preview
 from .contact_sheet import render_contact_sheet
 from .errors import VidedError
 from .ffmpeg import ToolError, ensure_tool
@@ -25,6 +27,7 @@ Detector = Literal["audio", "vad"]
 TrimMode = Literal["hybrid", "speed", "cut", "keep"]
 SpeedIndicatorCorner = Literal["top-left", "top-right", "bottom-left", "bottom-right"]
 SpeedIndicatorStyle = Literal["dark", "light"]
+AudioPreset = Literal["none", "level", "voice-safe"]
 AgentName = Literal["codex", "claude"]
 
 StoreTrue = Parameter(negative=())
@@ -237,6 +240,7 @@ def render(
         Path | None,
         Parameter(help="Final video to sample when rendering a contact sheet."),
     ] = None,
+    audio_preset: AudioPreset | None = None,
     output: Path | None = None,
     overwrite: Annotated[bool, StoreTrue] = False,
     dry_run: Annotated[bool, StoreTrue] = False,
@@ -244,6 +248,8 @@ def render(
     if contact_sheet:
         if debug:
             raise ValueError("Use either --debug or --contact-sheet, not both.")
+        if audio_preset is not None:
+            raise ValueError("--audio-preset can only be used when rendering video.")
         sheet = render_contact_sheet(
             project,
             final_video=final_video,
@@ -260,6 +266,7 @@ def render(
         project,
         debug=debug,
         output=output,
+        audio_preset=audio_preset,
         overwrite=overwrite,
         dry_run=dry_run,
     )
@@ -267,7 +274,39 @@ def render(
     return 0
 
 
-@app.command(show=False, sort_key=5)
+@app.command(name="audio-presets", help="List available audio render presets.", sort_key=5)
+def audio_presets() -> int:
+    for preset in list_audio_presets():
+        print(f"{preset.name}\t{preset.description}")
+    return 0
+
+
+@app.command(name="audio-preview", help="Render a short audio preset preview.", sort_key=6)
+def audio_preview(
+    project: Path,
+    /,
+    *,
+    audio_preset: AudioPreset,
+    start: float | None = None,
+    duration: float | None = None,
+    output: Path | None = None,
+    overwrite: Annotated[bool, StoreTrue] = False,
+    dry_run: Annotated[bool, StoreTrue] = False,
+) -> int:
+    rendered = render_audio_preview(
+        project,
+        audio_preset=audio_preset,
+        start=start,
+        duration=duration,
+        output=output,
+        overwrite=overwrite,
+        dry_run=dry_run,
+    )
+    print(f"Audio preview: {rendered}")
+    return 0
+
+
+@app.command(show=False, sort_key=7)
 def validate(project: Path, /) -> int:
     data = load_redactions(project)
     validate_redaction_document(data)
@@ -276,7 +315,7 @@ def validate(project: Path, /) -> int:
     return 0
 
 
-@app.command(help="Check external tool availability.", sort_key=6)
+@app.command(help="Check external tool availability.", sort_key=8)
 def doctor() -> int:
     ok = True
     for tool in ["ffmpeg", "ffprobe"]:
@@ -289,7 +328,7 @@ def doctor() -> int:
     return 0 if ok else 1
 
 
-@app.command(name="install-skill", help="Install the packaged agent skill.", sort_key=7)
+@app.command(name="install-skill", help="Install the packaged agent skill.", sort_key=9)
 def install_skill_command(
     *,
     agent: Annotated[AgentName, Parameter(help="Personal skill directory to install into.")],

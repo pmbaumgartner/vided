@@ -1,13 +1,13 @@
 ---
 name: vided
-description: Use when working with vided, a local CLI for speeding up silent video sections, annotating rectangular blur redactions, rendering final videos, and producing contact sheets.
+description: Use when working with vided, a local CLI for speeding up silent video sections, annotating rectangular blur redactions, rendering final videos, audio preset previews, and producing contact sheets.
 ---
 
 # Vided
 
 Vided is a local command-line tool for turning one source video into a project folder, speeding up
 silent sections, adding rectangular blur redactions through a browser UI, and rendering final
-output. Use `uvx` so the tool can run without a project-local install.
+output with optional audio presets. Use `uvx` so the tool can run without a project-local install.
 
 Start with command help when options matter:
 
@@ -84,6 +84,24 @@ Render to a specific output path when the user asks for a named artifact:
 
 ```bash
 uvx vided render project-dir --output output/custom-final.mp4 --overwrite
+```
+
+Preview a small audio preset before rendering. Without `--start`, vided chooses the longest
+normal-speed unmuted segment from the trim timeline and previews up to 15 seconds:
+
+```bash
+uvx vided audio-preview project-dir --audio-preset voice-safe --overwrite
+uvx vided audio-preview project-dir --audio-preset level --start 60 --duration 15 --overwrite
+```
+
+Available presets are intentionally small: `none` copies audio unchanged, `level` normalizes speech
+to a conservative target, and `voice-safe` adds gentle voice cleanup before the same loudness target.
+Use `uvx vided audio-presets` for the current list.
+
+Render with an audio preset only after previewing when audio quality matters:
+
+```bash
+uvx vided render project-dir --audio-preset voice-safe --overwrite
 ```
 
 ## Agent Guidance

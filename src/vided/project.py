@@ -202,6 +202,9 @@ def default_project_config(
             "pixel_format": "yuv420p",
             "audio_codec": "copy",
         },
+        "audio": {
+            "preset": "none",
+        },
         "redaction_defaults": {
             "buffer_pre_seconds": 0.5,
             "buffer_post_seconds": 0.5,

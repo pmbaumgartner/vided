@@ -1,6 +1,8 @@
 """Public Python API for vided."""
 
 from ._version import get_version as _get_version
+from .audio_presets import AudioPreset, list_audio_presets
+from .audio_preview import render_audio_preview, select_audio_preview_window
 from .contact_sheet import render_contact_sheet
 from .errors import (
     ExternalToolError,
@@ -45,6 +47,7 @@ from .vad import VadSettings, normalize_detector, run_vad_detection
 __version__ = _get_version()
 
 __all__ = [
+    "AudioPreset",
     "ExternalToolError",
     "OperationResult",
     "ProjectError",
@@ -71,11 +74,13 @@ __all__ = [
     "load_project",
     "load_packaged_skill",
     "load_redactions",
+    "list_audio_presets",
     "normalize_detector",
     "plan_trim",
     "probe_media",
     "project_paths",
     "read_json",
+    "render_audio_preview",
     "render_contact_sheet",
     "render_project",
     "render_redactions",
@@ -83,6 +88,7 @@ __all__ = [
     "run_vad_detection",
     "save_project",
     "save_redactions",
+    "select_audio_preview_window",
     "validate_redaction_document",
     "write_json",
 ]

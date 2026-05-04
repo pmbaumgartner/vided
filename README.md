@@ -11,6 +11,7 @@ It can:
 - mark fixed rectangular blur regions in a browser UI
 - render a debug preview with visible boxes
 - render the final blurred video with `ffmpeg`
+- optionally apply small audio polish presets at render time
 
 Everything is file-based and local. A project folder contains `project.json`,
 `redactions.json`, generated thumbnails, generated filtergraphs, and rendered outputs.
@@ -151,6 +152,45 @@ The final output is:
 
 ```text
 my-recording-project/output/final.mp4
+```
+
+Audio presets are opt-in. By default, render copies audio without filtering. To preview
+a preset on the longest normal-speed speech/sound segment:
+
+```bash
+vided audio-preview my-recording-project --audio-preset voice-safe --overwrite
+```
+
+The preview defaults to 15 seconds and writes a file like:
+
+```text
+my-recording-project/output/audio-preview-voice-safe-0s.mp4
+```
+
+You can choose a specific snippet:
+
+```bash
+vided audio-preview my-recording-project --audio-preset level --start 60 --duration 15 --overwrite
+```
+
+List presets:
+
+```bash
+vided audio-presets
+```
+
+Current presets:
+
+```text
+none        copy audio unchanged
+level       normalize speech to a conservative -18 LUFS target
+voice-safe  gentle voice cleanup plus the same conservative loudness target
+```
+
+Render with an audio preset:
+
+```bash
+vided render my-recording-project --audio-preset voice-safe --overwrite
 ```
 
 Render a contact sheet from the final video:

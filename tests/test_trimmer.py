@@ -41,6 +41,47 @@ def test_default_project_config_uses_hybrid_trim_mode() -> None:
     }
     assert cfg["trim"]["vad"]["threshold"] == 0.5
     assert cfg["trim"]["vad"]["manual_keep_ranges"] == []
+    assert cfg["audio"]["preset"] == "none"
+
+
+def test_build_trim_timeline_maps_source_segments_to_trimmed_output() -> None:
+    timeline = trimmer.build_trim_timeline(
+        [
+            trimmer.TrimSegment(start=0.0, end=4.0),
+            trimmer.TrimSegment(start=5.0, end=13.0, speed=8.0, mute_audio=True),
+            trimmer.TrimSegment(start=14.0, end=18.0),
+        ]
+    )
+
+    assert timeline == {
+        "schema_version": 1,
+        "segments": [
+            {
+                "source_start": 0.0,
+                "source_end": 4.0,
+                "output_start": 0.0,
+                "output_end": 4.0,
+                "speed": 1.0,
+                "mute_audio": False,
+            },
+            {
+                "source_start": 5.0,
+                "source_end": 13.0,
+                "output_start": 4.0,
+                "output_end": 5.0,
+                "speed": 8.0,
+                "mute_audio": True,
+            },
+            {
+                "source_start": 14.0,
+                "source_end": 18.0,
+                "output_start": 5.0,
+                "output_end": 9.0,
+                "speed": 1.0,
+                "mute_audio": False,
+            },
+        ],
+    }
 
 
 def test_speed_indicator_badge_generates_rgba_png(tmp_path) -> None:
