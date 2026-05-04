@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from types import SimpleNamespace
-
-import pytest
 
 from vided import cli
 from vided.skill_installer import SkillInstallResult
@@ -49,14 +46,14 @@ def test_init_accepts_explicit_output_dir_option(monkeypatch) -> None:
     assert calls["root"] == Path("custom-project")
 
 
-def test_init_rejects_positional_project_and_output_dir(monkeypatch, capsys) -> None:
+def test_init_rejects_positional_project(monkeypatch, capsys) -> None:
     def fake_create_project(*args, **kwargs) -> dict[str, str]:
         raise AssertionError("create_project should not be called")
 
     monkeypatch.setattr(cli, "create_project", fake_create_project)
 
-    assert cli.main(["init", "input.mp4", "project-dir", "--output-dir", "other-dir"]) == 1
-    assert "Use either the project argument or --output-dir" in capsys.readouterr().err
+    assert cli.main(["init", "input.mp4", "project-dir"]) == 2
+    assert "Unused Tokens" in capsys.readouterr().err
 
 
 def test_doctor_checks_only_ffmpeg_and_ffprobe(monkeypatch, capsys) -> None:
@@ -68,17 +65,18 @@ def test_doctor_checks_only_ffmpeg_and_ffprobe(monkeypatch, capsys) -> None:
 
     monkeypatch.setattr(cli, "ensure_tool", fake_ensure_tool)
 
-    assert cli.cmd_doctor(argparse.Namespace()) == 0
+    assert cli.doctor() == 0
     assert checked_tools == ["ffmpeg", "ffprobe"]
     assert "auto-editor" not in capsys.readouterr().out
 
 
 def test_top_level_help_omits_frames_command() -> None:
-    help_text = cli.build_parser().format_help()
+    help_text = cli.help_text()
 
-    assert "\n    frames    " not in help_text
-    assert "\n    ui        " in help_text
-    assert "\n    install-skill" in help_text
+    assert "frames:" not in help_text
+    assert "ui:" in help_text
+    assert "install-skill:" in help_text
+    assert "validate:" not in help_text
 
 
 def test_ui_passes_frame_generation_options(monkeypatch) -> None:
@@ -181,64 +179,6 @@ def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
     assert calls["run_kwargs"]["dry_run"] is False
 
 
-def test_trim_command_passes_speed_indicator_options(monkeypatch, capsys) -> None:
-    calls = {}
-    plan = object()
-
-    def fake_plan_trim(project: Path, **kwargs):
-        calls["project"] = project
-        calls["kwargs"] = kwargs
-        return plan
-
-    def fake_build_trim_command(trim_plan) -> list[str]:
-        calls["plan"] = trim_plan
-        return ["ffmpeg", "-i", "input.mp4", "output.mp4"]
-
-    monkeypatch.setattr(cli, "plan_trim", fake_plan_trim)
-    monkeypatch.setattr(cli, "build_trim_command", fake_build_trim_command)
-
-    assert (
-        cli.main(
-            [
-                "trim-command",
-                "project-dir",
-                "--speed-indicator",
-                "--speed-indicator-corner",
-                "top-left",
-                "--speed-indicator-style",
-                "dark",
-                "--speed-indicator-min-seconds",
-                "0.75",
-            ]
-        )
-        == 0
-    )
-    assert calls["project"] == Path("project-dir")
-    options = calls["kwargs"]["options"]
-    assert options.speed_indicator is True
-    assert options.speed_indicator_corner == "top-left"
-    assert options.speed_indicator_style == "dark"
-    assert options.speed_indicator_min_display_seconds == 0.75
-    assert calls["kwargs"]["allow_vad_detection"] is False
-    assert calls["plan"] is plan
-    assert "ffmpeg -i input.mp4 output.mp4" in capsys.readouterr().out
-
-
-def test_vad_command_passes_vad_options(monkeypatch) -> None:
-    calls = {}
-
-    def fake_run_vad_detection(project: Path, **kwargs) -> Path:
-        calls["project"] = project
-        calls["kwargs"] = kwargs
-        return project / "work" / "vad_ranges.json"
-
-    monkeypatch.setattr(cli, "run_vad_detection", fake_run_vad_detection)
-
-    assert cli.main(["vad", "project-dir", "--vad-threshold", "0.45"]) == 0
-    assert calls["project"] == Path("project-dir")
-    assert calls["kwargs"]["threshold"] == 0.45
-
-
 def test_render_contact_sheet_passes_options(monkeypatch) -> None:
     calls = {}
 
@@ -314,7 +254,4 @@ def test_install_skill_passes_options(monkeypatch, capsys) -> None:
 
 
 def test_install_skill_rejects_invalid_agent() -> None:
-    parser = cli.build_parser()
-
-    with pytest.raises(SystemExit):
-        parser.parse_args(["install-skill", "--agent", "other"])
+    assert cli.main(["install-skill", "--agent", "other"]) == 2

@@ -213,162 +213,128 @@ my-recording-project/
 The quick start above is the normal workflow. For other knobs, use command help:
 
 ```text
-usage: vided [-h] command ...
+Usage: vided COMMAND
 
 Simple local video silence speeder and rectangular blur redactor.
 
-positional arguments:
-  command
-    init         Create a one-video project folder.
-    trim         Run the trim renderer on the source video.
-    ui           Start the local annotation UI, generating frames if needed.
-    render       Render final or debug preview video.
-    doctor       Check external tool availability.
-    install-skill
-                 Install the packaged agent skill.
-
-options:
-  -h, --help     show this help message and exit
+Commands:
+  init: Create a one-video project folder.
+  trim: Run the trim renderer on the source video.
+  ui: Start the local annotation UI, generating frames if needed.
+  render: Render final or debug preview video.
+  doctor: Check external tool availability.
+  install-skill: Install the packaged agent skill.
+  --help, -h: Display this message and exit.
 ```
 
 ### `vided init --help`
 
 ```text
-usage: vided init [-h] [-o OUTPUT_DIR] [--frame-interval FRAME_INTERVAL]
-                  [--symlink] [--overwrite]
-                  source [project]
+Usage: vided init [OPTIONS] SOURCE
 
-positional arguments:
-  source                Input video path.
-  project               Project folder to create. Defaults to a folder name
-                        based on the input video.
+Create a one-video project folder.
 
-options:
-  -h, --help            show this help message and exit
-  -o OUTPUT_DIR, --output-dir OUTPUT_DIR
-                        Project folder to create when using the input video
-                        shorthand.
-  --frame-interval FRAME_INTERVAL
-                        Default thumbnail interval.
-  --symlink             Symlink instead of copying input video.
-  --overwrite           Allow reusing a non-empty folder.
+Arguments:
+  SOURCE: [required]
+
+Parameters:
+  --output-dir, -o: Project folder to create. Defaults to a name based on the
+  input video.
+  --frame-interval: Default thumbnail interval. [default: 1.0]
+  --symlink: Symlink instead of copying input video. [default: False]
+  --overwrite: Allow reusing a non-empty folder. [default: False]
 ```
 
 ### `vided trim --help`
 
 ```text
-usage: vided trim [-h] [--detector {audio,vad}]
-                  [--vad-threshold VAD_THRESHOLD]
-                  [--vad-min-speech-ms VAD_MIN_SPEECH_MS]
-                  [--vad-min-silence-ms VAD_MIN_SILENCE_MS]
-                  [--vad-speech-pad-ms VAD_SPEECH_PAD_MS]
-                  [--vad-merge-gap VAD_MERGE_GAP]
-                  [--mode {hybrid,speed,cut,keep}] [--margin MARGIN]
-                  [--smooth SMOOTH] [--silent-speed SILENT_SPEED]
-                  [--mute-silent-audio | --no-mute-silent-audio]
-                  [--speed-indicator | --no-speed-indicator]
-                  [--speed-indicator-corner {top-left,top-right,bottom-left,bottom-right}]
-                  [--speed-indicator-style {dark,light}]
-                  [--speed-indicator-min-seconds SPEED_INDICATOR_MIN_SECONDS]
-                  [--overwrite] [--dry-run]
-                  project
+Usage: vided trim [OPTIONS] PROJECT
 
-positional arguments:
-  project
+Run the trim renderer on the source video.
 
-options:
-  -h, --help            show this help message and exit
-  --detector {audio,vad}, --engine {audio,vad}
-                        Detector used to classify normal-speed sections.
-  --vad-threshold VAD_THRESHOLD
-  --vad-min-speech-ms VAD_MIN_SPEECH_MS
-  --vad-min-silence-ms VAD_MIN_SILENCE_MS
-  --vad-speech-pad-ms VAD_SPEECH_PAD_MS
-  --vad-merge-gap VAD_MERGE_GAP
-  --mode {hybrid,speed,cut,keep}
-  --margin MARGIN       Trim margin, e.g. 0.2s or 0.3s,1.0s
-  --smooth SMOOTH       Trim smoothing pair, e.g. 0.2s,0.1s
-  --silent-speed SILENT_SPEED
-                        Speed for silent sections.
+Arguments:
+  PROJECT: [required]
+
+Parameters:
+  --detector, --engine: [choices: audio, vad]
+  --mode: [choices: hybrid, speed, cut, keep]
+  --margin
+  --smooth
+  --silent-speed
   --mute-silent-audio, --no-mute-silent-audio
-                        When speed mode is used, chain volume:0 onto silent
-                        sections.
+  --vad-threshold
+  --vad-min-speech-ms
+  --vad-min-silence-ms
+  --vad-speech-pad-ms
+  --vad-merge-gap
   --speed-indicator, --no-speed-indicator
-                        Show a small speed label on sped-up silent sections.
-  --speed-indicator-corner {top-left,top-right,bottom-left,bottom-right}
-  --speed-indicator-style {dark,light}
-  --speed-indicator-min-seconds SPEED_INDICATOR_MIN_SECONDS
-                        Only show the badge when the sped-up section lasts at
-                        least this long after speedup.
-  --overwrite
-  --dry-run
+  --speed-indicator-corner: [choices: top-left, top-right, bottom-left,
+  bottom-right]
+  --speed-indicator-style: [choices: dark, light]
+  --speed-indicator-min-seconds
+  --overwrite: [default: False]
+  --dry-run: [default: False]
 ```
 
 ### `vided ui --help`
 
 ```text
-usage: vided ui [-h] [--host HOST] [--port PORT] [--no-open]
-                [--frame-interval FRAME_INTERVAL]
-                [--thumbnail-width THUMBNAIL_WIDTH] [--regenerate-frames]
-                project
+Usage: vided ui [OPTIONS] PROJECT
 
-positional arguments:
-  project
+Start the local annotation UI, generating frames if needed.
 
-options:
-  -h, --help            show this help message and exit
-  --host HOST
-  --port PORT
-  --no-open             Do not open the browser automatically.
-  --frame-interval FRAME_INTERVAL
-                        Seconds between thumbnails.
-  --thumbnail-width THUMBNAIL_WIDTH
-  --regenerate-frames   Regenerate thumbnails before opening the UI.
+Arguments:
+  PROJECT: [required]
+
+Parameters:
+  --host: [default: 127.0.0.1]
+  --port: [default: 8765]
+  --no-open: Do not open the browser automatically. [default: False]
+  --frame-interval: Seconds between thumbnails.
+  --thumbnail-width
+  --regenerate-frames: Regenerate thumbnails before opening the UI. [default:
+  False]
 ```
 
 ### `vided render --help`
 
 ```text
-usage: vided render [-h] [--debug] [--contact-sheet]
-                    [--final-video FINAL_VIDEO] [--output OUTPUT]
-                    [--overwrite] [--dry-run]
-                    project
+Usage: vided render [OPTIONS] PROJECT
 
-positional arguments:
-  project
+Render final or debug preview video.
 
-options:
-  -h, --help            show this help message and exit
-  --debug               Render visible rectangles instead of blur.
-  --contact-sheet       Render a contact sheet from the final video.
-  --final-video FINAL_VIDEO
-                        Final video to sample when rendering a contact sheet.
-  --output OUTPUT
-  --overwrite
-  --dry-run
+Arguments:
+  PROJECT: [required]
+
+Parameters:
+  --debug: Render visible rectangles instead of blur. [default: False]
+  --contact-sheet: Render a contact sheet from the final video. [default: False]
+  --final-video: Final video to sample when rendering a contact sheet.
+  --output
+  --overwrite: [default: False]
+  --dry-run: [default: False]
 ```
 
 ### `vided doctor --help`
 
 ```text
-usage: vided doctor [-h]
+Usage: vided doctor
 
-options:
-  -h, --help  show this help message and exit
+Check external tool availability.
 ```
 
 ### `vided install-skill --help`
 
 ```text
-usage: vided install-skill [-h] --agent {codex,claude} [--overwrite]
-                           [--dry-run]
+Usage: vided install-skill --agent LITERAL[CODEX, CLAUDE] [OPTIONS]
 
-options:
-  -h, --help            show this help message and exit
-  --agent {codex,claude}
-                        Personal skill directory to install into.
-  --overwrite
-  --dry-run
+Install the packaged agent skill.
+
+Parameters:
+  --agent: Personal skill directory to install into. [choices: codex, claude]
+  [required]
+  --overwrite: [default: False]
+  --dry-run: [default: False]
 ```
 
 ## Technical design
