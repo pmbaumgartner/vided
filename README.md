@@ -193,6 +193,62 @@ Render with an audio preset:
 vided render my-recording-project --audio-preset voice-safe --overwrite
 ```
 
+## Example outputs
+
+These examples use the 90-second public-domain NASA fixture at
+`tests/fixtures/media/realistic-speech-gaps.mp4`. The MP4s are GitHub release
+assets so the repository does not need to store generated binaries.
+
+Regenerate them locally:
+
+```bash
+scripts/generate_example_media.sh
+```
+
+Regenerate and upload them to the `examples` release:
+
+```bash
+scripts/generate_example_media.sh --upload
+```
+
+| Clip | Duration | Compare |
+| --- | ---: | --- |
+| [Original fixture](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-input.mp4) | 90.0s | Source clip |
+| [Audio trim](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-trim-audio.mp4) | 83.1s | Default audio detector trim |
+| [VAD trim](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-trim-vad.mp4) | 61.1s | Speech-aware trim |
+| [Preview: none](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-none.mp4) | 12.5s | Default preview snippet, unchanged audio |
+| [Preview: level](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-level.mp4) | 12.5s | Same snippet with conservative loudness normalization |
+| [Preview: voice-safe](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-voice-safe.mp4) | 12.5s | Same snippet with gentle voice cleanup |
+
+<details>
+<summary>Standalone video URLs for GitHub preview</summary>
+
+Original fixture
+
+https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-input.mp4
+
+Audio trim
+
+https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-trim-audio.mp4
+
+VAD trim
+
+https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-trim-vad.mp4
+
+Preview: none
+
+https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-none.mp4
+
+Preview: level
+
+https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-level.mp4
+
+Preview: voice-safe
+
+https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-voice-safe.mp4
+
+</details>
+
 Render a contact sheet from the final video:
 
 ```bash
@@ -277,6 +333,8 @@ Commands:
   trim: Run the trim renderer on the source video.
   ui: Start the local annotation UI, generating frames if needed.
   render: Render final or debug preview video.
+  audio-presets: List available audio render presets.
+  audio-preview: Render a short audio preset preview.
   doctor: Check external tool availability.
   install-skill: Install the packaged agent skill.
   --help, -h: Display this message and exit.
