@@ -17,7 +17,7 @@ from .errors import VidedError
 from .ffmpeg import ToolError, ensure_tool
 from .project import create_project, project_paths
 from .redactions import load_redactions, render_redactions, validate_redaction_document
-from .render import render_project
+from .render import copy_trimmed_to_final, render_project
 from .skill_installer import install_skill
 from .trimmer import TrimOptions, VadOptions, plan_trim, run_trim_plan
 
@@ -152,6 +152,15 @@ def trim(
     /,
     *,
     options: TrimCliOptions | None = None,
+    final: Annotated[
+        bool,
+        StoreTrue,
+        Parameter(help="Also copy the trimmed video to the final output path."),
+    ] = False,
+    final_output: Annotated[
+        Path | None,
+        Parameter(help="Final output path; implies --final. Defaults to output/final.mp4."),
+    ] = None,
     overwrite: Annotated[bool, StoreTrue] = False,
     dry_run: Annotated[bool, StoreTrue] = False,
 ) -> int:
@@ -162,6 +171,15 @@ def trim(
     )
     result = run_trim_plan(plan, overwrite=overwrite, dry_run=dry_run)
     print(f"Trimmed video: {result.path}")
+    if final or final_output is not None:
+        output = copy_trimmed_to_final(
+            project,
+            source=result.path,
+            output=final_output,
+            overwrite=overwrite,
+            dry_run=dry_run,
+        )
+        print(f"Final video: {output}")
     return 0
 
 

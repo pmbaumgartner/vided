@@ -28,7 +28,7 @@ from .redactions import (
     save_redactions,
     validate_redaction_document,
 )
-from .render import render_project
+from .render import copy_trimmed_to_final, render_project
 from .skill_installer import SkillInstallResult, install_skill, load_packaged_skill
 from .trimmer import (
     OperationResult,
@@ -64,6 +64,7 @@ __all__ = [
     "VideoInfo",
     "__version__",
     "build_trim_command",
+    "copy_trimmed_to_final",
     "create_project",
     "generate_frames",
     "install_skill",

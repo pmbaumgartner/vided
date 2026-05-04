@@ -67,6 +67,13 @@ Use VAD-based trimming when simple audio-level trimming is not good enough:
 uvx vided trim project-dir --detector vad --overwrite
 ```
 
+When the user only needs automatic edits and does not need redactions or the UI, publish the trimmed
+video directly as the final artifact:
+
+```bash
+uvx vided trim project-dir --final --overwrite
+```
+
 Tune UI frame generation when the user needs denser or wider thumbnails:
 
 ```bash

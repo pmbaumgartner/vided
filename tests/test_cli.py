@@ -190,6 +190,56 @@ def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
     assert calls["run_kwargs"]["dry_run"] is False
 
 
+def test_trim_can_publish_final_video(monkeypatch, capsys) -> None:
+    calls = {}
+    plan = object()
+
+    def fake_plan_trim(project: Path, **kwargs):
+        calls["project"] = project
+        calls["kwargs"] = kwargs
+        return plan
+
+    def fake_run_trim_plan(trim_plan, **kwargs):
+        calls["plan"] = trim_plan
+        calls["run_kwargs"] = kwargs
+        return SimpleNamespace(path=Path("project-dir/work/trimmed.mp4"))
+
+    def fake_copy_trimmed_to_final(project: Path, **kwargs) -> Path:
+        calls["final_project"] = project
+        calls["final_kwargs"] = kwargs
+        return Path("project-dir/output/auto-edited.mp4")
+
+    monkeypatch.setattr(cli, "plan_trim", fake_plan_trim)
+    monkeypatch.setattr(cli, "run_trim_plan", fake_run_trim_plan)
+    monkeypatch.setattr(cli, "copy_trimmed_to_final", fake_copy_trimmed_to_final)
+
+    assert (
+        cli.main(
+            [
+                "trim",
+                "project-dir",
+                "--final-output",
+                "output/auto-edited.mp4",
+                "--overwrite",
+                "--dry-run",
+            ]
+        )
+        == 0
+    )
+    assert calls["project"] == Path("project-dir")
+    assert calls["kwargs"]["allow_vad_detection"] is False
+    assert calls["plan"] is plan
+    assert calls["run_kwargs"] == {"overwrite": True, "dry_run": True}
+    assert calls["final_project"] == Path("project-dir")
+    assert calls["final_kwargs"] == {
+        "source": Path("project-dir/work/trimmed.mp4"),
+        "output": Path("output/auto-edited.mp4"),
+        "overwrite": True,
+        "dry_run": True,
+    }
+    assert "Final video: project-dir/output/auto-edited.mp4" in capsys.readouterr().out
+
+
 def test_render_contact_sheet_passes_options(monkeypatch) -> None:
     calls = {}
 

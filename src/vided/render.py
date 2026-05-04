@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +8,39 @@ from .ffmpeg import ensure_tool, run_command
 from .filtergraph import build_debug_filtergraph, build_final_filtergraph, write_filtergraph
 from .project import load_project, project_paths
 from .redactions import load_redactions, render_redactions
+
+
+def copy_trimmed_to_final(
+    project_root: Path,
+    *,
+    source: Path | None = None,
+    output: Path | None = None,
+    overwrite: bool = False,
+    dry_run: bool = False,
+) -> Path:
+    cfg = load_project(project_root)
+    p = project_paths(project_root, config=cfg)
+    trimmed = source or p.trimmed
+    if source is not None and not trimmed.is_absolute() and not trimmed.exists():
+        trimmed = p.root / trimmed
+    if output is None:
+        output = p.output_dir / "final.mp4"
+    elif not output.is_absolute():
+        output = p.root / output
+
+    if not dry_run:
+        if not trimmed.exists():
+            raise FileNotFoundError(f"Trimmed video not found: {trimmed}. Run `vided trim` first.")
+        same_file = trimmed.resolve() == output.resolve()
+        if output.exists() and not overwrite and not same_file:
+            raise FileExistsError(
+                f"Final video already exists: {output}. Use --overwrite to replace it."
+            )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if not same_file:
+            shutil.copy2(trimmed, output)
+
+    return output
 
 
 def render_project(

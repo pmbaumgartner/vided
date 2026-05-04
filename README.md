@@ -98,6 +98,19 @@ Trim silence:
 vided trim my-recording-project
 ```
 
+If you only need the automatic edit and do not need redactions or the UI, write the
+trimmed result straight to the final video:
+
+```bash
+vided trim my-recording-project --final --overwrite
+```
+
+The final output is:
+
+```text
+my-recording-project/output/final.mp4
+```
+
 Open the annotation UI:
 
 ```bash
@@ -275,6 +288,8 @@ Parameters:
   bottom-right]
   --speed-indicator-style: [choices: dark, light]
   --speed-indicator-min-seconds
+  --final: Also copy the trimmed video to the final output path. [default: False]
+  --final-output: Final output path; implies --final. Defaults to output/final.mp4.
   --overwrite: [default: False]
   --dry-run: [default: False]
 ```
