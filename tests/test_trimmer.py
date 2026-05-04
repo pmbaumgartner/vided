@@ -112,6 +112,26 @@ def test_ffmpeg_trim_command_uses_concat_segments(tmp_path, monkeypatch) -> None
     assert "concat=n=2:v=1:a=1[vout][aout]" in graph
 
 
+def test_ffmpeg_trim_command_outputs_only_filtered_media_streams(tmp_path, monkeypatch) -> None:
+    project = write_basic_project(tmp_path / "project")
+    patch_probe_media(monkeypatch, trimmer)
+    monkeypatch.setattr(
+        trimmer,
+        "_trim_segments",
+        lambda *args, **kwargs: [trimmer.TrimSegment(start=0.0, end=10.0)],
+    )
+
+    cmd = build_trim_command_for_test(project)
+    mapped_streams = [cmd[index + 1] for index, arg in enumerate(cmd[:-1]) if arg == "-map"]
+
+    assert mapped_streams == ["[vout]", "[aout]"]
+    assert "0:v" not in mapped_streams
+    assert "0:a" not in mapped_streams
+    assert "-sn" in cmd
+    assert "-dn" in cmd
+    assert "-shortest" in cmd
+
+
 def test_ffmpeg_trim_command_overlays_speed_indicator_on_sped_segments(
     tmp_path, monkeypatch
 ) -> None:

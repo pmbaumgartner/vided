@@ -168,6 +168,8 @@ audio threshold: 0.04
 
 Short pauses disappear. Long waits are sped up and muted. Speech stays at normal speed.
 The default detector uses ffmpeg-decoded audio levels.
+Trimmed outputs contain only the rendered video and audio streams; subtitle and data
+streams from the source are omitted so they cannot extend the reported duration.
 
 To use VAD instead:
 

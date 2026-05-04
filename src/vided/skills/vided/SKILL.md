@@ -31,7 +31,8 @@ uvx vided doctor
 uvx vided init /path/to/input.mp4 --output-dir project-dir
 ```
 
-3. Trim silence. The default detector is usually enough for a first pass.
+3. Trim silence. The default detector is usually enough for a first pass. Trimmed outputs
+   contain only rendered video and audio streams.
 
 ```bash
 uvx vided trim project-dir
