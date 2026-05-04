@@ -65,14 +65,14 @@ Run the CLI module directly:
 uv run python -m vided --help
 ```
 
-After the package is published to PyPI, install it as a tool:
+Install from PyPI as a tool:
 
 ```bash
 uv tool install vided
 vided --help
 ```
 
-For one-off use after publishing:
+For one-off use:
 
 ```bash
 uvx vided --help
@@ -206,106 +206,150 @@ my-recording-project/
 
 ## Commands
 
-The normal workflow uses:
+The quick start above is the normal workflow. For other knobs, use command help:
 
-- `init`
-- `trim`
-- `ui`
-- `render`
-- `doctor`
+```text
+usage: vided [-h] command ...
 
-Check dependencies:
+Simple local video silence speeder and rectangular blur redactor.
 
-```bash
-vided doctor
+positional arguments:
+  command
+    init      Create a one-video project folder.
+    trim      Run the trim renderer on the source video.
+    ui        Start the local annotation UI, generating frames if needed.
+    render    Render final or debug preview video.
+    doctor    Check external tool availability.
+
+options:
+  -h, --help  show this help message and exit
 ```
 
-Create a project:
+### `vided init --help`
 
-```bash
-vided init input.mp4
+```text
+usage: vided init [-h] [-o OUTPUT_DIR] [--frame-interval FRAME_INTERVAL]
+                  [--symlink] [--overwrite]
+                  source [project]
+
+positional arguments:
+  source                Input video path.
+  project               Project folder to create. Defaults to a folder name
+                        based on the input video.
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTPUT_DIR, --output-dir OUTPUT_DIR
+                        Project folder to create when using the input video
+                        shorthand.
+  --frame-interval FRAME_INTERVAL
+                        Default thumbnail interval.
+  --symlink             Symlink instead of copying input video.
+  --overwrite           Allow reusing a non-empty folder.
 ```
 
-Choose a project folder:
+### `vided trim --help`
 
-```bash
-vided init input.mp4 project-dir
-vided init input.mp4 --output-dir project-dir
+```text
+usage: vided trim [-h] [--detector {audio,vad}]
+                  [--vad-threshold VAD_THRESHOLD]
+                  [--vad-min-speech-ms VAD_MIN_SPEECH_MS]
+                  [--vad-min-silence-ms VAD_MIN_SILENCE_MS]
+                  [--vad-speech-pad-ms VAD_SPEECH_PAD_MS]
+                  [--vad-merge-gap VAD_MERGE_GAP]
+                  [--mode {hybrid,speed,cut,keep}] [--margin MARGIN]
+                  [--smooth SMOOTH] [--silent-speed SILENT_SPEED]
+                  [--mute-silent-audio | --no-mute-silent-audio]
+                  [--speed-indicator | --no-speed-indicator]
+                  [--speed-indicator-corner {top-left,top-right,bottom-left,bottom-right}]
+                  [--speed-indicator-style {dark,light}]
+                  [--speed-indicator-min-seconds SPEED_INDICATOR_MIN_SECONDS]
+                  [--overwrite] [--dry-run]
+                  project
+
+positional arguments:
+  project
+
+options:
+  -h, --help            show this help message and exit
+  --detector {audio,vad}, --engine {audio,vad}
+                        Detector used to classify normal-speed sections.
+  --vad-threshold VAD_THRESHOLD
+  --vad-min-speech-ms VAD_MIN_SPEECH_MS
+  --vad-min-silence-ms VAD_MIN_SILENCE_MS
+  --vad-speech-pad-ms VAD_SPEECH_PAD_MS
+  --vad-merge-gap VAD_MERGE_GAP
+  --mode {hybrid,speed,cut,keep}
+  --margin MARGIN       Trim margin, e.g. 0.2s or 0.3s,1.0s
+  --smooth SMOOTH       Trim smoothing pair, e.g. 0.2s,0.1s
+  --silent-speed SILENT_SPEED
+                        Speed for silent sections.
+  --mute-silent-audio, --no-mute-silent-audio
+                        When speed mode is used, chain volume:0 onto silent
+                        sections.
+  --speed-indicator, --no-speed-indicator
+                        Show a small speed label on sped-up silent sections.
+  --speed-indicator-corner {top-left,top-right,bottom-left,bottom-right}
+  --speed-indicator-style {dark,light}
+  --speed-indicator-min-seconds SPEED_INDICATOR_MIN_SECONDS
+                        Only show the badge when the sped-up section lasts at
+                        least this long after speedup.
+  --overwrite
+  --dry-run
 ```
 
-Symlink the original instead of copying it:
+### `vided ui --help`
 
-```bash
-vided init input.mp4 project-dir --symlink
+```text
+usage: vided ui [-h] [--host HOST] [--port PORT] [--no-open]
+                [--frame-interval FRAME_INTERVAL]
+                [--thumbnail-width THUMBNAIL_WIDTH] [--regenerate-frames]
+                project
+
+positional arguments:
+  project
+
+options:
+  -h, --help            show this help message and exit
+  --host HOST
+  --port PORT
+  --no-open             Do not open the browser automatically.
+  --frame-interval FRAME_INTERVAL
+                        Seconds between thumbnails.
+  --thumbnail-width THUMBNAIL_WIDTH
+  --regenerate-frames   Regenerate thumbnails before opening the UI.
 ```
 
-Run the default trim pass:
+### `vided render --help`
 
-```bash
-vided trim project-dir --overwrite
+```text
+usage: vided render [-h] [--debug] [--contact-sheet]
+                    [--final-video FINAL_VIDEO] [--output OUTPUT]
+                    [--overwrite] [--dry-run]
+                    project
+
+positional arguments:
+  project
+
+options:
+  -h, --help            show this help message and exit
+  --debug               Render visible rectangles instead of blur.
+  --contact-sheet       Render a contact sheet from the final video.
+  --final-video FINAL_VIDEO
+                        Final video to sample when rendering a contact sheet.
+  --output OUTPUT
+  --overwrite
+  --dry-run
 ```
 
-Use a different trim mode:
+### `vided doctor --help`
 
-```bash
-vided trim project-dir --mode cut --overwrite
-vided trim project-dir --mode speed --overwrite
-vided trim project-dir --mode keep --overwrite
+```text
+usage: vided doctor [-h]
+
+options:
+  -h, --help  show this help message and exit
 ```
-
-Tune silence handling:
-
-```bash
-vided trim project-dir --silent-speed 12 --overwrite
-vided trim project-dir --no-mute-silent-audio --overwrite
-vided trim project-dir --smooth 0.2s,0.1s --overwrite
-```
-
-Show a speed badge on sped-up sections:
-
-```bash
-vided trim project-dir --speed-indicator --speed-indicator-corner top-right --overwrite
-```
-
-The badge appears only when the sped-up section lasts at least one second in the
-output. To show it on shorter sped-up sections:
-
-```bash
-vided trim project-dir --speed-indicator --speed-indicator-min-seconds 0.5 --overwrite
-```
-
-Use VAD:
-
-```bash
-vided trim project-dir --detector vad --overwrite
-```
-
-Generate denser or larger thumbnails before opening the UI:
-
-```bash
-vided frames project-dir --interval 0.5 --overwrite
-vided frames project-dir --thumbnail-width 960 --overwrite
-```
-
-Render to a custom path:
-
-```bash
-vided render project-dir --output output/my-final.mp4 --overwrite
-```
-
-Render a contact sheet from the default final video:
-
-```bash
-vided render project-dir --contact-sheet --overwrite
-```
-
-Render a contact sheet from a custom final video:
-
-```bash
-vided render project-dir --contact-sheet --final-video output/my-final.mp4 --output output/my-sheet.jpg --overwrite
-```
-
-`trim`, `frames`, and `render` also support `--dry-run`.
 
 ## Technical design
 

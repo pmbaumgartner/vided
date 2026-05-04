@@ -8,7 +8,6 @@ from pathlib import Path
 from .contact_sheet import render_contact_sheet
 from .errors import VidedError
 from .ffmpeg import ToolError, ensure_tool
-from .frames import generate_frames
 from .project import create_project, project_paths
 from .redactions import load_redactions, render_redactions, validate_redaction_document
 from .render import render_project
@@ -128,19 +127,20 @@ def build_parser() -> argparse.ArgumentParser:
     _add_vad_options(vad)
     vad.set_defaults(func=cmd_vad)
 
-    frames = sub.add_parser("frames", help="Generate or refresh frame thumbnails.")
-    frames.add_argument("project", type=Path)
-    frames.add_argument("--interval", type=float, default=None, help="Seconds between thumbnails.")
-    frames.add_argument("--thumbnail-width", type=int, default=None)
-    frames.add_argument("--overwrite", action="store_true")
-    frames.add_argument("--dry-run", action="store_true")
-    frames.set_defaults(func=cmd_frames)
-
     ui = sub.add_parser("ui", help="Start the local annotation UI, generating frames if needed.")
     ui.add_argument("project", type=Path)
     ui.add_argument("--host", default="127.0.0.1")
     ui.add_argument("--port", type=int, default=8765)
     ui.add_argument("--no-open", action="store_true", help="Do not open the browser automatically.")
+    ui.add_argument(
+        "--frame-interval", type=float, default=None, help="Seconds between thumbnails."
+    )
+    ui.add_argument("--thumbnail-width", type=int, default=None)
+    ui.add_argument(
+        "--regenerate-frames",
+        action="store_true",
+        help="Regenerate thumbnails before opening the UI.",
+    )
     ui.set_defaults(func=cmd_ui)
 
     render = sub.add_parser("render", help="Render final or debug preview video.")
@@ -228,22 +228,18 @@ def cmd_vad(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_frames(args: argparse.Namespace) -> int:
-    output = generate_frames(
-        args.project,
-        interval_seconds=args.interval,
-        thumbnail_width=args.thumbnail_width,
-        overwrite=args.overwrite,
-        dry_run=args.dry_run,
-    )
-    print(f"Frames metadata: {output}")
-    return 0
-
-
 def cmd_ui(args: argparse.Namespace) -> int:
     from .ui_server import run_ui
 
-    run_ui(args.project, host=args.host, port=args.port, open_browser=not args.no_open)
+    run_ui(
+        args.project,
+        host=args.host,
+        port=args.port,
+        open_browser=not args.no_open,
+        frame_interval=args.frame_interval,
+        thumbnail_width=args.thumbnail_width,
+        regenerate_frames=args.regenerate_frames,
+    )
     return 0
 
 

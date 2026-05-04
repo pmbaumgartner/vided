@@ -134,17 +134,32 @@ def _has_frame_images(frames_dir: Path) -> bool:
     return frames_dir.exists() and next(frames_dir.glob("frame_*.jpg"), None) is not None
 
 
-def ensure_ui_frames(project_root: Path) -> Path | None:
+def ensure_ui_frames(
+    project_root: Path,
+    *,
+    interval_seconds: float | None = None,
+    thumbnail_width: int | None = None,
+    regenerate: bool = False,
+) -> Path | None:
     p = project_paths(project_root)
     if not p.project_json.exists():
         raise FileNotFoundError(f"Project not found: {p.project_json}")
 
     has_images = _has_frame_images(p.frames_dir)
-    if p.frames_json.exists() and has_images:
+    has_frame_options = interval_seconds is not None or thumbnail_width is not None
+    if p.frames_json.exists() and has_images and not regenerate and not has_frame_options:
         return None
 
-    print("Frames not found. Generating thumbnails before opening the UI.")
-    return generate_frames(project_root, overwrite=has_images)
+    if p.frames_json.exists() and has_images:
+        print("Regenerating thumbnails before opening the UI.")
+    else:
+        print("Frames not found. Generating thumbnails before opening the UI.")
+    return generate_frames(
+        project_root,
+        interval_seconds=interval_seconds,
+        thumbnail_width=thumbnail_width,
+        overwrite=has_images,
+    )
 
 
 def run_ui(
@@ -153,8 +168,16 @@ def run_ui(
     host: str = "127.0.0.1",
     port: int = 8765,
     open_browser: bool = True,
+    frame_interval: float | None = None,
+    thumbnail_width: int | None = None,
+    regenerate_frames: bool = False,
 ) -> None:
-    ensure_ui_frames(project_root)
+    ensure_ui_frames(
+        project_root,
+        interval_seconds=frame_interval,
+        thumbnail_width=thumbnail_width,
+        regenerate=regenerate_frames,
+    )
 
     server = create_server(project_root, host=host, port=port)
     url = f"http://{host}:{port}/"

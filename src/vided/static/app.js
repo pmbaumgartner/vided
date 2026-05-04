@@ -356,7 +356,7 @@ async function loadProject() {
   if (state.frames.length > 0) {
     await selectFrame(0);
   } else {
-    els.draftStatus.textContent = "No frames found. Run `vided frames` and refresh this page.";
+    els.draftStatus.textContent = "No thumbnails found. Restart `vided ui` to regenerate them.";
   }
 }
 

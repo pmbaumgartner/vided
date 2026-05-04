@@ -70,6 +70,50 @@ def test_doctor_checks_only_ffmpeg_and_ffprobe(monkeypatch, capsys) -> None:
     assert "auto-editor" not in capsys.readouterr().out
 
 
+def test_top_level_help_omits_frames_command() -> None:
+    help_text = cli.build_parser().format_help()
+
+    assert "\n    frames    " not in help_text
+    assert "\n    ui        " in help_text
+
+
+def test_ui_passes_frame_generation_options(monkeypatch) -> None:
+    calls = {}
+
+    def fake_run_ui(project: Path, **kwargs) -> None:
+        calls["project"] = project
+        calls["kwargs"] = kwargs
+
+    monkeypatch.setattr("vided.ui_server.run_ui", fake_run_ui)
+
+    assert (
+        cli.main(
+            [
+                "ui",
+                "project-dir",
+                "--no-open",
+                "--frame-interval",
+                "0.5",
+                "--thumbnail-width",
+                "960",
+                "--regenerate-frames",
+            ]
+        )
+        == 0
+    )
+    assert calls == {
+        "project": Path("project-dir"),
+        "kwargs": {
+            "host": "127.0.0.1",
+            "port": 8765,
+            "open_browser": False,
+            "frame_interval": 0.5,
+            "thumbnail_width": 960,
+            "regenerate_frames": True,
+        },
+    }
+
+
 def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
     calls = {}
     plan = object()
