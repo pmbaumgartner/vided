@@ -41,7 +41,7 @@ from .trimmer import (
 )
 from .vad import VadSettings, normalize_detector, run_vad_detection
 
-__version__ = "0.1.0"
+__version__ = "0.1.4"
 
 __all__ = [
     "ExternalToolError",

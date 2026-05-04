@@ -465,10 +465,17 @@ uv run ruff check src tests
 uv run ty check src tests
 ```
 
-Install the pre-commit hook:
+Install the `prek`-managed pre-commit hook:
 
 ```bash
-uv run pre-commit install
+uv run prek install
+```
+
+Verify the configured hooks:
+
+```bash
+uv run prek run --stage pre-commit --dry-run
+uv run prek run --stage pre-commit
 ```
 
 Every commit with package source or release metadata changes must bump the package
