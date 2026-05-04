@@ -46,14 +46,14 @@ def test_init_accepts_explicit_output_dir_option(monkeypatch) -> None:
     assert calls["root"] == Path("custom-project")
 
 
-def test_init_rejects_positional_project_and_output_dir(monkeypatch, capsys) -> None:
+def test_init_rejects_positional_project(monkeypatch, capsys) -> None:
     def fake_create_project(*args, **kwargs) -> dict[str, str]:
         raise AssertionError("create_project should not be called")
 
     monkeypatch.setattr(cli, "create_project", fake_create_project)
 
-    assert cli.main(["init", "input.mp4", "project-dir", "--output-dir", "other-dir"]) == 1
-    assert "Use either the project argument or --output-dir" in capsys.readouterr().err
+    assert cli.main(["init", "input.mp4", "project-dir"]) == 2
+    assert "Unused Tokens" in capsys.readouterr().err
 
 
 def test_doctor_checks_only_ffmpeg_and_ffprobe(monkeypatch, capsys) -> None:

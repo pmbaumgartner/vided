@@ -110,13 +110,13 @@ app = App(
 @app.command(help="Create a one-video project folder.", sort_key=0)
 def init(
     source: Path,
-    project: Path | None = None,
     /,
     *,
     output_dir: Annotated[
         Path | None,
         Parameter(
-            alias="-o", help="Project folder to create when using the input video shorthand."
+            alias="-o",
+            help="Project folder to create. Defaults to a name based on the input video.",
         ),
     ] = None,
     frame_interval: Annotated[float, Parameter(help="Default thumbnail interval.")] = 1.0,
@@ -129,10 +129,7 @@ def init(
         Parameter(help="Allow reusing a non-empty folder."),
     ] = False,
 ) -> int:
-    if project is not None and output_dir is not None:
-        raise ValueError("Use either the project argument or --output-dir, not both.")
-
-    project_root = output_dir or project or _default_project_dir(source)
+    project_root = output_dir or _default_project_dir(source)
     cfg = create_project(
         source,
         project_root,
