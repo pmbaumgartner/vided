@@ -807,7 +807,7 @@ def build_trim_command(plan: TrimPlan) -> list[str]:
     )
     if plan.media_info.has_audio:
         cmd.extend(["-map", "[aout]"])
-    cmd.extend(["-sn", "-dn", "-shortest"])
+    cmd.extend(["-sn", "-dn", "-map_chapters", "-1", "-shortest"])
 
     render_cfg = plan.render_config
     cmd.extend(

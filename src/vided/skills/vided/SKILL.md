@@ -32,7 +32,8 @@ uvx vided init /path/to/input.mp4 --output-dir project-dir
 ```
 
 3. Trim silence. Use `--overwrite` when rerunning trim so stale `work/trimmed.mp4` is
-   replaced. Trimmed outputs contain only rendered video and audio streams.
+   replaced. Trimmed outputs contain only rendered video and audio streams, with source
+   subtitle streams, data streams, and chapters omitted.
 
 ```bash
 uvx vided trim project-dir --overwrite
