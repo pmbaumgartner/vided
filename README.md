@@ -421,6 +421,37 @@ uv run ruff check src tests
 uv run ty check src tests
 ```
 
+Install the pre-commit hook:
+
+```bash
+uv run pre-commit install
+```
+
+Every commit with staged file changes must bump the package version with zerover:
+
+```bash
+uv version --bump patch
+# or, for larger changes while still staying on major zero:
+uv version --bump minor
+git add pyproject.toml uv.lock
+```
+
+After committing, add the matching tag:
+
+```bash
+version="$(uv version --short)"
+git tag -a "v$version" -m "v$version"
+git push origin HEAD --tags
+```
+
+Publishing runs from `.github/workflows/publish.yml` when a `v*` tag is pushed. In
+PyPI, configure a trusted publisher for:
+
+- owner: `pmbaumgartner`
+- repository: `vided`
+- workflow: `publish.yml`
+- environment: `pypi`
+
 ### Realistic media fixtures
 
 The repo includes two Git LFS-tracked public-domain NASA fixtures:
