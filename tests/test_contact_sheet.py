@@ -64,9 +64,7 @@ def test_compose_contact_sheet_highlights_redacted_frames(tmp_path) -> None:
         assert rgb.getpixel((140, 16)) == normal
         assert rgb.getpixel((90, 30)) == (10, 20, 30)
         assert any(
-            rgb.getpixel((x, y)) != (10, 20, 30)
-            for x in range(30, 96)
-            for y in range(66, 98)
+            rgb.getpixel((x, y)) != (10, 20, 30) for x in range(30, 96) for y in range(66, 98)
         )
 
 
@@ -127,12 +125,8 @@ def test_render_contact_sheet_extracts_from_final_video(tmp_path, monkeypatch) -
         calls["kwargs"] = kwargs
         frame_pattern = Path(cmd[-1])
         frame_pattern.parent.mkdir(parents=True, exist_ok=True)
-        Image.new("RGB", (20, 10), (10, 20, 30)).save(
-            frame_pattern.parent / "frame_000001.jpg"
-        )
-        Image.new("RGB", (20, 10), (40, 50, 60)).save(
-            frame_pattern.parent / "frame_000002.jpg"
-        )
+        Image.new("RGB", (20, 10), (10, 20, 30)).save(frame_pattern.parent / "frame_000001.jpg")
+        Image.new("RGB", (20, 10), (40, 50, 60)).save(frame_pattern.parent / "frame_000002.jpg")
         return object()
 
     monkeypatch.setattr(contact_sheet, "run_command", fake_run_command)

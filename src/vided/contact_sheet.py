@@ -42,7 +42,9 @@ def render_contact_sheet(
 
     source = _resolve_final_video(p.root, p.output_dir, final_video)
     if not source.exists():
-        raise FileNotFoundError(f"Final video not found: {source}. Run `vided render {p.root}` first.")
+        raise FileNotFoundError(
+            f"Final video not found: {source}. Run `vided render {p.root}` first."
+        )
 
     if output is None:
         output = p.output_dir / "contact-sheet.jpg"
@@ -50,7 +52,9 @@ def render_contact_sheet(
         output = p.root / output
 
     if output.exists() and not overwrite and not dry_run:
-        raise FileExistsError(f"Contact sheet already exists: {output}. Use --overwrite to replace it.")
+        raise FileExistsError(
+            f"Contact sheet already exists: {output}. Use --overwrite to replace it."
+        )
 
     frame_cfg: dict[str, Any] = cfg.get("frames", {})
     interval_seconds = float(frame_cfg.get("interval_seconds", 1.0))
@@ -93,7 +97,9 @@ def render_contact_sheet(
 
     info = probe_media(source)
     redactions = render_redactions(load_redactions(project_root))
-    timestamps = [min(index * interval_seconds, max(info.duration, 0.0)) for index in range(len(frames))]
+    timestamps = [
+        min(index * interval_seconds, max(info.duration, 0.0)) for index in range(len(frames))
+    ]
     compose_contact_sheet(frames, timestamps=timestamps, redactions=redactions, output=output)
     return output
 
@@ -143,7 +149,9 @@ def compose_contact_sheet(
             width=border_width,
         )
         sheet.alpha_composite(image.convert("RGBA"), (image_x, image_y))
-        _draw_timestamp_chip(sheet, (image_x, image_y), image.size, _format_seconds(timestamp), font)
+        _draw_timestamp_chip(
+            sheet, (image_x, image_y), image.size, _format_seconds(timestamp), font
+        )
 
     image_format = "PNG" if output.suffix.lower() == ".png" else "JPEG"
     if image_format == "JPEG":
