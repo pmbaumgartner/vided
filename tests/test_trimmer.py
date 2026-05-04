@@ -129,6 +129,7 @@ def test_ffmpeg_trim_command_outputs_only_filtered_media_streams(tmp_path, monke
     assert "0:a" not in mapped_streams
     assert "-sn" in cmd
     assert "-dn" in cmd
+    assert cmd[cmd.index("-map_chapters") + 1] == "-1"
     assert "-shortest" in cmd
 
 
