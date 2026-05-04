@@ -1,26 +1,17 @@
 # Vided
 
-Vided is a small local tool for editing one screen recording at a time.
+Vided is a small local tool for making screen recordings shorter and safer to
+share.
 
-It can:
+It trims dead air, speeds up longer pauses, and lets you blur fixed rectangular
+areas like emails, account IDs, tokens, URL bars, sidebars, or terminal panes. It
+runs locally with `ffmpeg`; your video does not leave your machine.
 
-- cut short silent gaps
-- speed up longer silent sections
-- optionally mute sped-up silent sections
-- generate thumbnails
-- mark fixed rectangular blur regions in a browser UI
-- render a debug preview with visible boxes
-- render the final blurred video with `ffmpeg`
-- optionally apply small audio polish presets at render time
+## Example
 
-Everything is file-based and local. A project folder contains `project.json`,
-`redactions.json`, generated thumbnails, generated filtergraphs, and rendered outputs.
-
-## VAD trim example
-
-This example uses the 90-second public-domain NASA fixture at
-`tests/fixtures/media/realistic-speech-gaps.mp4`. The VAD trim keeps speech at
-normal speed and removes or speeds up the gaps, producing a 61.1-second output.
+This is the 90-second public-domain NASA fixture in this repo. VAD trim keeps
+speech at normal speed and removes or speeds up the gaps, producing a
+61.1-second output.
 
 **Input, 90.0s**
 
@@ -30,170 +21,116 @@ https://github.com/user-attachments/assets/24b476e4-72d3-4bad-843a-3c801cc3adcb
 
 https://github.com/user-attachments/assets/c0ccba07-e2be-45b0-a6a9-d4a7d57f3f28
 
-## Best fit
+## Install
 
-Use Vided for mostly static screen recordings where the sensitive area stays in a
-predictable part of the screen:
-
-- email addresses
-- account IDs
-- tokens
-- URL bars
-- sidebars
-- terminal panes
-
-Vided is not a tracker. If the thing you need to hide moves, create multiple
-redactions across smaller time ranges.
-
-## Requirements
-
-For video work:
+Requirements:
 
 - `ffmpeg`
 - `ffprobe`
-
-For local development and source installs:
-
 - Python 3.11 or newer
-- `uv`
 
-Speech-based trimming with VAD is included in the core package.
-
-## Run from this repo
-
-Install dependencies and check the CLI:
-
-```bash
-uv sync
-uv run vided --help
-uv run vided --version
-uv run vided doctor
-```
-
-Run the CLI module directly:
-
-```bash
-uv run python -m vided --help
-```
-
-Install from PyPI as a tool:
-
-```bash
-uv tool install vided
-vided --help
-```
-
-For one-off use:
+Run once with `uvx`:
 
 ```bash
 uvx vided --help
 ```
 
-Install the packaged skill for a coding agent:
+Or install as a tool:
 
 ```bash
-uvx vided install-skill --agent codex
-uvx vided install-skill --agent claude
+uv tool install vided
+vided doctor
 ```
 
-## Quick start
+From this repo:
+
+```bash
+uv sync
+uv run vided doctor
+```
+
+## Quick Start
 
 Create a project:
 
 ```bash
-vided init /path/to/original-recording.mp4 --output-dir my-recording-project
+vided init /path/to/recording.mp4 --output-dir my-video
 ```
 
-If you omit `--output-dir`, `init` creates a folder from the input filename, such as
-`original-recording`.
-
-Trim silence:
+Trim silence and write the result directly to `output/final.mp4`:
 
 ```bash
-vided trim my-recording-project
+vided trim my-video --detector vad --final --overwrite
 ```
 
-If you only need the automatic edit and do not need redactions or the UI, write the
-trimmed result straight to the final video:
+For redaction, open the local browser UI:
 
 ```bash
-vided trim my-recording-project --final --overwrite
+vided ui my-video
 ```
-
-The final output is:
-
-```text
-my-recording-project/output/final.mp4
-```
-
-Open the annotation UI:
-
-```bash
-vided ui my-recording-project
-```
-
-If thumbnails are missing, `ui` generates them from `work/trimmed.mp4` before opening
-the browser.
 
 In the UI:
 
-1. Click a thumbnail in the bottom filmstrip.
+1. Click a thumbnail where the redaction starts.
 2. Click **Set start**.
-3. Drag a rectangle in the large frame view.
-4. Click the thumbnail where the blur should end.
+3. Draw the rectangle to blur.
+4. Click a thumbnail where it ends.
 5. Click **Add redaction**.
-6. Wait for the save status in the top bar.
 
-Render a debug preview first:
+Render a visible-box debug preview:
 
 ```bash
-vided render my-recording-project --debug --overwrite
-```
-
-The debug output is:
-
-```text
-my-recording-project/output/debug-preview.mp4
+vided render my-video --debug --overwrite
 ```
 
 Render the final blurred video:
 
 ```bash
-vided render my-recording-project --overwrite
+vided render my-video --overwrite
 ```
 
-The final output is:
+## Common Tasks
 
-```text
-my-recording-project/output/final.mp4
-```
-
-Audio presets are opt-in. By default, render copies audio without filtering. To preview
-a preset on the longest normal-speed speech/sound segment:
+Trim with the default audio-level detector:
 
 ```bash
-vided audio-preview my-recording-project --audio-preset voice-safe --overwrite
+vided trim my-video --final --overwrite
 ```
 
-The preview defaults to 15 seconds and writes a file like:
-
-```text
-my-recording-project/output/audio-preview-voice-safe-0s.mp4
-```
-
-You can choose a specific snippet:
+Trim with speech-aware VAD:
 
 ```bash
-vided audio-preview my-recording-project --audio-preset level --start 60 --duration 15 --overwrite
+vided trim my-video --detector vad --final --overwrite
 ```
 
-List presets:
+Preview an audio preset on the longest detected speech/sound segment:
 
 ```bash
-vided audio-presets
+vided audio-preview my-video --audio-preset voice-safe --overwrite
 ```
 
-Current presets:
+Render with an audio preset:
+
+```bash
+vided render my-video --audio-preset voice-safe --overwrite
+```
+
+Render a contact sheet from the final video:
+
+```bash
+vided render my-video --contact-sheet --overwrite
+```
+
+Install the packaged coding-agent skill:
+
+```bash
+vided install-skill --agent codex
+vided install-skill --agent claude
+```
+
+## Audio Presets
+
+Audio presets are opt-in. By default, Vided copies audio without filtering.
 
 ```text
 none        copy audio unchanged
@@ -201,16 +138,22 @@ level       normalize speech to a conservative -18 LUFS target
 voice-safe  gentle voice cleanup plus the same conservative loudness target
 ```
 
-Render with an audio preset:
+List the current presets:
 
 ```bash
-vided render my-recording-project --audio-preset voice-safe --overwrite
+vided audio-presets
 ```
 
-## Example outputs
+Choose your own preview snippet:
 
-These additional examples use the same fixture. The `none` audio preset preview is
-omitted because it is the unchanged preview snippet.
+```bash
+vided audio-preview my-video --audio-preset level --start 60 --duration 15 --overwrite
+```
+
+## More Examples
+
+These examples use `tests/fixtures/media/realistic-speech-gaps.mp4`. The `none`
+audio preset preview is omitted because it is unchanged audio.
 
 Regenerate them locally:
 
@@ -218,13 +161,13 @@ Regenerate them locally:
 scripts/generate_example_media.sh
 ```
 
-Regenerate and upload them to the `examples` release:
+Regenerate and upload release assets:
 
 ```bash
 scripts/generate_example_media.sh --upload
 ```
 
-The generated MP4s are also uploaded as release assets at
+Release assets are stored at
 https://github.com/pmbaumgartner/vided/releases/tag/examples.
 
 **Audio detector trim, 83.1s**
@@ -239,307 +182,83 @@ https://github.com/user-attachments/assets/965bb188-f499-4c42-924c-1755b85d1a81
 
 https://github.com/user-attachments/assets/388c075f-d94b-4cf2-bab8-cff070fc38b1
 
-Render a contact sheet from the final video:
-
-```bash
-vided render my-recording-project --contact-sheet --overwrite
-```
-
-The contact sheet shows sampled frames from `output/final.mp4`. Frames that overlap
-redactions get an accent border.
-
-```text
-my-recording-project/output/contact-sheet.jpg
-```
-
-## Trim behavior
+## How Trim Works
 
 The default trim mode is `hybrid`:
 
-```text
-detector: audio
-short silent sections: cut
-silent sections 1.5s or longer: speed:8,volume:0
-normal sections: keep
-margin: 0.2s
-smooth: 0.2s,0.1s
-audio threshold: 0.04
-```
+- short silent sections are cut
+- silent sections 1.5 seconds or longer are sped up 8x and muted
+- speech/sound stays at normal speed
+- default margin is 0.2 seconds
 
-Short pauses disappear. Long waits are sped up and muted. Speech stays at normal speed.
-The default detector uses ffmpeg-decoded audio levels.
-Trimmed outputs contain only the rendered video and audio streams; subtitle streams,
-data streams, and chapters from the source are omitted so they cannot extend the
-reported duration.
-
-To use VAD instead:
+The default detector uses ffmpeg-decoded audio levels. Use VAD for more
+speech-aware trimming:
 
 ```bash
-vided trim my-recording-project --detector vad --overwrite
+vided trim my-video --detector vad --overwrite
 ```
 
-This creates or refreshes `work/vad.wav` and `work/vad_ranges.json` as needed, then
-runs the same ffmpeg trim renderer.
+Trimmed outputs contain only rendered video and audio streams. Subtitle streams,
+data streams, and chapters are omitted so they cannot extend the reported
+duration.
 
-## Project layout
+## Project Files
 
-After the full flow, a project looks like this:
+Vided is file-based. A project keeps the original input, trim output, generated
+frames, redaction data, and rendered outputs together:
 
 ```text
-my-recording-project/
+my-video/
   project.json
   redactions.json
-  input/
-    original.mp4
-  work/
-    trimmed.mp4
-    vad.wav
-    vad_ranges.json
-    filtergraph.txt
-    filtergraph.debug.txt
-    frames/
-      frame_000001.jpg
-      frame_000002.jpg
-      frames.json
-  output/
-    debug-preview.mp4
-    final.mp4
-    contact-sheet.jpg
+  input/original.mp4
+  work/trimmed.mp4
+  work/frames/
+  output/debug-preview.mp4
+  output/final.mp4
+  output/contact-sheet.jpg
 ```
 
-`vad.wav` and `vad_ranges.json` exist only after using VAD.
+With VAD, Vided also writes `work/vad.wav` and `work/vad_ranges.json`.
+
+Redactions are created against the trimmed video, so redaction timestamps match
+debug and final renders.
 
 ## Commands
 
-The quick start above is the normal workflow. For other knobs, use command help:
+Use command help for details:
+
+```bash
+vided --help
+vided init --help
+vided trim --help
+vided ui --help
+vided render --help
+vided audio-preview --help
+```
+
+Main commands:
 
 ```text
-Usage: vided COMMAND
-
-Simple local video silence speeder and rectangular blur redactor.
-
-Commands:
-  init: Create a one-video project folder.
-  trim: Run the trim renderer on the source video.
-  ui: Start the local annotation UI, generating frames if needed.
-  render: Render final or debug preview video.
-  audio-presets: List available audio render presets.
-  audio-preview: Render a short audio preset preview.
-  doctor: Check external tool availability.
-  install-skill: Install the packaged agent skill.
-  --help, -h: Display this message and exit.
-  --version, -v: Display application version.
+init            create a one-video project
+trim            remove or speed up silence
+ui              open the local redaction UI
+render          render debug, final, or contact sheet output
+audio-presets   list audio presets
+audio-preview   render a short audio preset preview
+doctor          check ffmpeg/ffprobe availability
+install-skill   install the packaged coding-agent skill
 ```
-
-### `vided init --help`
-
-```text
-Usage: vided init [OPTIONS] SOURCE
-
-Create a one-video project folder.
-
-Arguments:
-  SOURCE: [required]
-
-Parameters:
-  --output-dir, -o: Project folder to create. Defaults to a name based on the
-  input video.
-  --frame-interval: Default thumbnail interval. [default: 1.0]
-  --symlink: Symlink instead of copying input video. [default: False]
-  --overwrite: Allow reusing a non-empty folder. [default: False]
-```
-
-### `vided trim --help`
-
-```text
-Usage: vided trim [OPTIONS] PROJECT
-
-Run the trim renderer on the source video.
-
-Arguments:
-  PROJECT: [required]
-
-Parameters:
-  --detector, --engine: [choices: audio, vad]
-  --mode: [choices: hybrid, speed, cut, keep]
-  --margin
-  --smooth
-  --silent-speed
-  --mute-silent-audio, --no-mute-silent-audio
-  --vad-threshold
-  --vad-min-speech-ms
-  --vad-min-silence-ms
-  --vad-speech-pad-ms
-  --vad-merge-gap
-  --speed-indicator, --no-speed-indicator
-  --speed-indicator-corner: [choices: top-left, top-right, bottom-left,
-  bottom-right]
-  --speed-indicator-style: [choices: dark, light]
-  --speed-indicator-min-seconds
-  --final: Also copy the trimmed video to the final output path. [default: False]
-  --final-output: Final output path; implies --final. Defaults to output/final.mp4.
-  --overwrite: [default: False]
-  --dry-run: [default: False]
-```
-
-### `vided ui --help`
-
-```text
-Usage: vided ui [OPTIONS] PROJECT
-
-Start the local annotation UI, generating frames if needed.
-
-Arguments:
-  PROJECT: [required]
-
-Parameters:
-  --host: [default: 127.0.0.1]
-  --port: [default: 8765]
-  --no-open: Do not open the browser automatically. [default: False]
-  --frame-interval: Seconds between thumbnails.
-  --thumbnail-width
-  --regenerate-frames: Regenerate thumbnails before opening the UI. [default:
-  False]
-```
-
-### `vided render --help`
-
-```text
-Usage: vided render [OPTIONS] PROJECT
-
-Render final or debug preview video.
-
-Arguments:
-  PROJECT: [required]
-
-Parameters:
-  --debug: Render visible rectangles instead of blur. [default: False]
-  --contact-sheet: Render a contact sheet from the final video. [default: False]
-  --final-video: Final video to sample when rendering a contact sheet.
-  --output
-  --overwrite: [default: False]
-  --dry-run: [default: False]
-```
-
-### `vided doctor --help`
-
-```text
-Usage: vided doctor
-
-Check external tool availability.
-```
-
-### `vided install-skill --help`
-
-```text
-Usage: vided install-skill --agent LITERAL[CODEX, CLAUDE] [OPTIONS]
-
-Install the packaged agent skill.
-
-Parameters:
-  --agent: Personal skill directory to install into. [choices: codex, claude]
-  [required]
-  --overwrite: [default: False]
-  --dry-run: [default: False]
-```
-
-## Technical design
-
-The pipeline is:
-
-```text
-original video
-  -> audio-level or VAD activity detection
-  -> ffmpeg-backed speed/mute trim pass
-  -> work/trimmed.mp4
-  -> ffmpeg thumbnail generation
-  -> browser rectangle annotations
-  -> redactions.json
-  -> ffmpeg debug preview
-  -> ffmpeg final blurred render
-```
-
-Redactions are created against the trimmed video. That keeps all redaction timestamps
-in the same timeline as the debug and final renders.
-
-The UI stores rectangles in real video pixels, not thumbnail pixels.
-
-## Redaction data
-
-The browser writes `redactions.json`. Each redaction stores selected times, buffered
-effective times, a video-pixel rectangle, and a style:
-
-```json
-{
-  "id": "redaction_001",
-  "selected_start_seconds": 10.0,
-  "selected_end_seconds": 15.0,
-  "buffer_pre_seconds": 0.5,
-  "buffer_post_seconds": 0.5,
-  "effective_start_seconds": 9.5,
-  "effective_end_seconds": 15.5,
-  "rect": {
-    "x": 1000,
-    "y": 42,
-    "w": 420,
-    "h": 90
-  },
-  "style": {
-    "type": "blur",
-    "filter": "boxblur",
-    "luma_radius": 18,
-    "luma_power": 3
-  }
-}
-```
-
-## Rendering
-
-For each blur redaction, the renderer generates an ffmpeg filtergraph that:
-
-1. splits the video stream
-2. crops the target rectangle from a copy
-3. applies `boxblur` to the crop
-4. overlays the blurred crop back onto the base video during the redaction time range
-
-Generated filtergraphs are written to:
-
-```text
-work/filtergraph.txt
-work/filtergraph.debug.txt
-```
-
-The final render must re-encode video because blur is a video filter. Defaults:
-
-```json
-{
-  "video_codec": "libx264",
-  "crf": 16,
-  "preset": "medium",
-  "pixel_format": "yuv420p",
-  "audio_codec": "copy"
-}
-```
-
-Lower CRF means higher quality and larger files. Try CRF `12` or `14` for very high
-quality, or `18` to `23` for smaller files.
-
-Audio is stream-copied during the redaction render. Silence speeding and muting happen
-during the trim pass.
 
 ## Limitations
 
-- Fixed rectangles only. There are no keyframed rectangles or object tracking.
-- Annotations happen on the trimmed video. Changing trim settings later means
-  regenerating thumbnails and reviewing redactions.
-- The UI uses frame thumbnails plus debug render. It does not include a video preview.
-- Frame times are based on the thumbnail interval. This is fine for broad redactions
-  with buffers, but not frame-perfect editing.
+- Rectangles are fixed. There is no object tracking.
+- Changing trim settings after redacting means regenerating thumbnails and
+  reviewing redactions.
+- The UI uses frame thumbnails plus debug render. It is not a full video editor.
+- Frame times follow the thumbnail interval, so this is not for frame-perfect cuts.
 - Rotation metadata and unusual pixel aspect ratios are not normalized.
-- Blur is implemented in the UI. Solid redaction is partially supported by the renderer
-  if you hand-edit `style.type` to `solid`.
-- The local UI server binds to `127.0.0.1` by default. Do not expose it to the public
-  internet.
+- The local UI server binds to `127.0.0.1` by default. Do not expose it publicly.
 
 ## Development
 
@@ -557,31 +276,41 @@ uv run ruff check src tests
 uv run ty check src tests
 ```
 
-Install the `prek`-managed pre-commit hook:
+Install and run pre-commit hooks:
 
 ```bash
 uv run prek install
-```
-
-Verify the configured hooks:
-
-```bash
-uv run prek run --stage pre-commit --dry-run
 uv run prek run --stage pre-commit
 ```
 
-The hooks run Ruff formatting, Ruff lint checks, and the release-version bump guard.
+Run fixture e2e tests:
 
-Every commit with package source or release metadata changes must bump the package
-version with zerover. This includes staged changes under `src/` and published package
-metadata in `pyproject.toml`, such as runtime dependencies, entry points, Python
-version support, or build configuration. Tests, workflows, docs, scripts, dev
-dependencies, and `uv.lock`-only changes do not require a bump.
+```bash
+uv run pytest --run-e2e -m e2e
+```
+
+Install the Playwright browser before browser e2e tests:
+
+```bash
+uv run playwright install chromium
+uv run pytest --run-e2e -m browser --browser chromium
+```
+
+The repo includes two Git LFS-tracked public-domain NASA fixtures:
+
+- `tests/fixtures/media/realistic-speech-gaps.mp4`
+- `tests/fixtures/media/realistic-speech-gaps-short.mp4`
+
+Source and license notes live beside each fixture as `*.LICENSE.md`.
+
+## Release Notes
+
+Every commit with package source or release metadata changes must bump the
+package version with zerover. Tests, workflows, docs, scripts, dev dependencies,
+and `uv.lock`-only changes do not require a bump.
 
 ```bash
 uv version --bump patch
-# or, for larger changes while still staying on major zero:
-uv version --bump minor
 git add pyproject.toml uv.lock
 ```
 
@@ -593,33 +322,4 @@ git tag -a "v$version" -m "v$version"
 git push origin HEAD --tags
 ```
 
-Publishing runs from `.github/workflows/publish.yml` when a `v*` tag is pushed. In
-PyPI, configure a trusted publisher for:
-
-- owner: `pmbaumgartner`
-- repository: `vided`
-- workflow: `publish.yml`
-- environment: `pypi`
-
-### Realistic media fixtures
-
-The repo includes two Git LFS-tracked public-domain NASA fixtures:
-
-- `tests/fixtures/media/realistic-speech-gaps.mp4`
-- `tests/fixtures/media/realistic-speech-gaps-short.mp4`
-
-Use them for realistic trim, VAD, frame generation, render, and UI smoke tests. Source
-and license notes live beside each fixture as `*.LICENSE.md`.
-
-Run fixture e2e tests:
-
-```bash
-uv run pytest --run-e2e -m e2e
-```
-
-Install the Playwright browser once before browser e2e tests:
-
-```bash
-uv run playwright install chromium
-uv run pytest --run-e2e -m browser --browser chromium
-```
+Publishing runs from `.github/workflows/publish.yml` when a `v*` tag is pushed.
