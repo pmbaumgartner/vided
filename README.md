@@ -78,6 +78,13 @@ For one-off use:
 uvx vided --help
 ```
 
+Install the packaged skill for a coding agent:
+
+```bash
+uvx vided install-skill --agent codex
+uvx vided install-skill --agent claude
+```
+
 ## Quick start
 
 Create a project:
@@ -215,14 +222,16 @@ Simple local video silence speeder and rectangular blur redactor.
 
 positional arguments:
   command
-    init      Create a one-video project folder.
-    trim      Run the trim renderer on the source video.
-    ui        Start the local annotation UI, generating frames if needed.
-    render    Render final or debug preview video.
-    doctor    Check external tool availability.
+    init         Create a one-video project folder.
+    trim         Run the trim renderer on the source video.
+    ui           Start the local annotation UI, generating frames if needed.
+    render       Render final or debug preview video.
+    doctor       Check external tool availability.
+    install-skill
+                 Install the packaged agent skill.
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help     show this help message and exit
 ```
 
 ### `vided init --help`
@@ -349,6 +358,20 @@ usage: vided doctor [-h]
 
 options:
   -h, --help  show this help message and exit
+```
+
+### `vided install-skill --help`
+
+```text
+usage: vided install-skill [-h] --agent {codex,claude} [--overwrite]
+                           [--dry-run]
+
+options:
+  -h, --help            show this help message and exit
+  --agent {codex,claude}
+                        Personal skill directory to install into.
+  --overwrite
+  --dry-run
 ```
 
 ## Technical design

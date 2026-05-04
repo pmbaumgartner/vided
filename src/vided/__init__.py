@@ -29,6 +29,7 @@ from .redactions import (
     validate_redaction_document,
 )
 from .render import render_project
+from .skill_installer import SkillInstallResult, install_skill, load_packaged_skill
 from .trimmer import (
     OperationResult,
     TrimOptions,
@@ -41,7 +42,7 @@ from .trimmer import (
 )
 from .vad import VadSettings, normalize_detector, run_vad_detection
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 __all__ = [
     "ExternalToolError",
@@ -52,6 +53,7 @@ __all__ = [
     "Rect",
     "Redaction",
     "RedactionDocument",
+    "SkillInstallResult",
     "ToolError",
     "TrimOptions",
     "TrimPlan",
@@ -65,7 +67,9 @@ __all__ = [
     "build_trim_command",
     "create_project",
     "generate_frames",
+    "install_skill",
     "load_project",
+    "load_packaged_skill",
     "load_redactions",
     "normalize_detector",
     "plan_trim",

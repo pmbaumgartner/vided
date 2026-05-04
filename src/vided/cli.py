@@ -11,6 +11,7 @@ from .ffmpeg import ToolError, ensure_tool
 from .project import create_project, project_paths
 from .redactions import load_redactions, render_redactions, validate_redaction_document
 from .render import render_project
+from .skill_installer import install_skill
 from .trimmer import TrimOptions, VadOptions, build_trim_command, plan_trim, run_trim_plan
 from .vad import run_vad_detection
 
@@ -171,6 +172,17 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor", help="Check external tool availability.")
     doctor.set_defaults(func=cmd_doctor)
 
+    install_skill_parser = sub.add_parser("install-skill", help="Install the packaged agent skill.")
+    install_skill_parser.add_argument(
+        "--agent",
+        choices=["codex", "claude"],
+        required=True,
+        help="Personal skill directory to install into.",
+    )
+    install_skill_parser.add_argument("--overwrite", action="store_true")
+    install_skill_parser.add_argument("--dry-run", action="store_true")
+    install_skill_parser.set_defaults(func=cmd_install_skill)
+
     preview = _add_diagnostic_parser(sub, "trim-command")
     preview.add_argument("project", type=Path)
     _add_trim_detector_options(preview)
@@ -290,6 +302,17 @@ def cmd_doctor(args: argparse.Namespace) -> int:  # noqa: ARG001
             ok = False
             print(f"MISSING: {exc}")
     return 0 if ok else 1
+
+
+def cmd_install_skill(args: argparse.Namespace) -> int:
+    result = install_skill(
+        args.agent,
+        overwrite=args.overwrite,
+        dry_run=args.dry_run,
+    )
+    action = "Would install" if result.dry_run else "Installed"
+    print(f"{action} {args.agent} skill: {result.path}")
+    return 0
 
 
 def cmd_trim_command(args: argparse.Namespace) -> int:

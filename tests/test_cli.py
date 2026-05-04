@@ -4,7 +4,10 @@ import argparse
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from vided import cli
+from vided.skill_installer import SkillInstallResult
 
 
 def test_default_project_dir_is_derived_from_source_filename() -> None:
@@ -75,6 +78,7 @@ def test_top_level_help_omits_frames_command() -> None:
 
     assert "\n    frames    " not in help_text
     assert "\n    ui        " in help_text
+    assert "\n    install-skill" in help_text
 
 
 def test_ui_passes_frame_generation_options(monkeypatch) -> None:
@@ -288,3 +292,29 @@ def test_final_video_requires_contact_sheet(monkeypatch, capsys) -> None:
 
     assert cli.main(["render", "project-dir", "--final-video", "output/final.mp4"]) == 1
     assert "--final-video can only be used with --contact-sheet" in capsys.readouterr().err
+
+
+def test_install_skill_passes_options(monkeypatch, capsys) -> None:
+    calls = {}
+
+    def fake_install_skill(agent: str, **kwargs: object) -> SkillInstallResult:
+        calls["agent"] = agent
+        calls["kwargs"] = kwargs
+        return SkillInstallResult(
+            path=Path("/tmp/home/.codex/skills/vided/SKILL.md"),
+            wrote=False,
+            dry_run=True,
+        )
+
+    monkeypatch.setattr(cli, "install_skill", fake_install_skill)
+
+    assert cli.main(["install-skill", "--agent", "codex", "--overwrite", "--dry-run"]) == 0
+    assert calls == {"agent": "codex", "kwargs": {"overwrite": True, "dry_run": True}}
+    assert "Would install codex skill:" in capsys.readouterr().out
+
+
+def test_install_skill_rejects_invalid_agent() -> None:
+    parser = cli.build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["install-skill", "--agent", "other"])
