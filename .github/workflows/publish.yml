@@ -26,6 +26,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           lfs: true
 
       - name: Set up Python
@@ -45,6 +46,20 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --locked --all-extras --dev
+
+      - name: Check release version bump
+        if: github.event_name == 'pull_request'
+        run: >
+          python scripts/check_release_bump.py --ci
+          --base-ref "${{ github.event.pull_request.base.sha }}"
+          --head-ref HEAD
+
+      - name: Check release version bump on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: >
+          python scripts/check_release_bump.py --ci
+          --base-ref "${{ github.event.before }}"
+          --head-ref "${{ github.sha }}"
 
       - name: Install Playwright Chromium
         run: uv run playwright install --with-deps chromium

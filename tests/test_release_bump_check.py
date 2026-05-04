@@ -96,6 +96,19 @@ def run_check(repo: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def run_ci_check(
+    repo: Path, base_ref: str, head_ref: str = "HEAD"
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["python", str(SCRIPT), "--ci", "--base-ref", base_ref, "--head-ref", head_ref],
+        cwd=repo,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
 def test_source_files_require_staged_zerover_bump(tmp_path: Path) -> None:
     init_repo(tmp_path)
     tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
@@ -151,6 +164,52 @@ def test_dev_dependency_changes_do_not_require_bump(tmp_path: Path) -> None:
     git(tmp_path, "add", "pyproject.toml")
 
     result = run_check(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_ci_source_files_require_zerover_bump(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
+    git(tmp_path, "switch", "-c", "feature")
+    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    git(tmp_path, "add", "src/vided/__init__.py")
+    assert git(tmp_path, "commit", "-m", "change source").returncode == 0
+
+    result = run_ci_check(tmp_path, base_ref)
+
+    assert result.returncode == 1
+    assert "Base version: 0.1.0" in result.stderr
+    assert "Head version: 0.1.0" in result.stderr
+    assert "src/vided/__init__.py" in result.stderr
+
+
+def test_ci_source_files_pass_with_lockstep_bump(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
+    git(tmp_path, "switch", "-c", "feature")
+    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    write_project(tmp_path, "0.1.1")
+    git(tmp_path, "add", ".")
+    assert git(tmp_path, "commit", "-m", "change source").returncode == 0
+
+    result = run_ci_check(tmp_path, base_ref)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_ci_tests_docs_and_workflows_do_not_require_bump(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    base_ref = git(tmp_path, "rev-parse", "HEAD").stdout.strip()
+    git(tmp_path, "switch", "-c", "feature")
+    tmp_path.joinpath("README.md").write_text("changed\n", encoding="utf-8")
+    tmp_path.joinpath("tests/test_placeholder.py").write_text(
+        "def test_placeholder():\n    assert 1\n"
+    )
+    git(tmp_path, "add", ".")
+    assert git(tmp_path, "commit", "-m", "change docs and tests").returncode == 0
+
+    result = run_ci_check(tmp_path, base_ref)
 
     assert result.returncode == 0, result.stderr
 

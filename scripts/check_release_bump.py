@@ -5,6 +5,7 @@ import re
 import subprocess
 import sys
 import tomllib
+from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,11 @@ def should_require_release_bump() -> bool:
     return current_branch() == "main" or merge_in_progress()
 
 
+def changed_files_between(base_ref: str, head_ref: str) -> list[str]:
+    output = git_stdout(["diff", "--name-only", "--diff-filter=ACDMRT", base_ref, head_ref])
+    return [line for line in output.splitlines() if line]
+
+
 def staged_files() -> list[str]:
     output = git_stdout(["diff", "--cached", "--name-only", "--diff-filter=ACDMRT"])
     return [line for line in output.splitlines() if line]
@@ -93,6 +99,13 @@ def index_file(path: str) -> str:
     result = git(["show", f":{path}"])
     if result.returncode != 0:
         raise CheckError(f"{path} must be present in the staged index.")
+    return result.stdout
+
+
+def ref_file(ref: str, path: str) -> str | None:
+    result = git(["show", f"{ref}:{path}"])
+    if result.returncode != 0:
+        return None
     return result.stdout
 
 
@@ -129,34 +142,37 @@ def release_surface(pyproject_text: str) -> dict[str, Any]:
     }
 
 
-def version_changed(staged_pyproject: str, head_pyproject: str | None) -> bool:
-    if head_pyproject is None:
+def version_changed(current_pyproject: str, previous_pyproject: str | None) -> bool:
+    if previous_pyproject is None:
         return True
-    _, staged_version = project_name_and_version(staged_pyproject)
-    _, head_version = project_name_and_version(head_pyproject)
-    return staged_version != head_version
+    _, current_version = project_name_and_version(current_pyproject)
+    _, previous_version = project_name_and_version(previous_pyproject)
+    return current_version != previous_version
 
 
-def pyproject_release_surface_changed() -> bool:
-    staged_pyproject = index_file(PROJECT_FILE)
-    head_pyproject = head_file(PROJECT_FILE)
-    if head_pyproject is None:
+def pyproject_release_surface_changed(
+    current_pyproject: str, previous_pyproject: str | None
+) -> bool:
+    if previous_pyproject is None:
         return True
-    return release_surface(staged_pyproject) != release_surface(head_pyproject)
+    return release_surface(current_pyproject) != release_surface(previous_pyproject)
 
 
-def release_relevant_files(files: list[str]) -> list[str]:
+def release_relevant_files(
+    files: list[str], current_pyproject: str, previous_pyproject: str | None
+) -> list[str]:
     relevant_files = [
         path
         for path in files
         if path.startswith(PACKAGE_SOURCE_PREFIX)
-        or (path == PROJECT_FILE and pyproject_release_surface_changed())
+        or (
+            path == PROJECT_FILE
+            and pyproject_release_surface_changed(current_pyproject, previous_pyproject)
+        )
     ]
 
-    if PROJECT_FILE in files:
-        staged_pyproject = index_file(PROJECT_FILE)
-        if version_changed(staged_pyproject, head_file(PROJECT_FILE)):
-            relevant_files.append(PROJECT_FILE)
+    if PROJECT_FILE in files and version_changed(current_pyproject, previous_pyproject):
+        relevant_files.append(PROJECT_FILE)
 
     return sorted(set(relevant_files))
 
@@ -189,26 +205,33 @@ def format_staged_files(files: list[str]) -> str:
     return "\n".join(lines)
 
 
-def require_release_bump() -> None:
-    files = staged_files()
-    files_requiring_bump = release_relevant_files(files)
+def require_release_bump_for_files(
+    *,
+    files: list[str],
+    current_pyproject: str,
+    previous_pyproject: str | None,
+    current_lock: str,
+    previous_version_label: str,
+    current_version_label: str,
+    files_label: str,
+) -> None:
+    files_requiring_bump = release_relevant_files(files, current_pyproject, previous_pyproject)
     if not files_requiring_bump:
         return
 
-    project_name, staged_version_text = project_name_and_version(index_file(PROJECT_FILE))
-    staged_version = ZeroVersion.parse(staged_version_text)
+    project_name, current_version_text = project_name_and_version(current_pyproject)
+    current_version = ZeroVersion.parse(current_version_text)
 
-    head_pyproject = head_file(PROJECT_FILE)
-    head_version_text = None
-    if head_pyproject is not None:
-        _, head_version_text = project_name_and_version(head_pyproject)
-        head_version = ZeroVersion.parse(head_version_text)
-        if staged_version <= head_version:
+    previous_version_text = None
+    if previous_pyproject is not None:
+        _, previous_version_text = project_name_and_version(previous_pyproject)
+        previous_version = ZeroVersion.parse(previous_version_text)
+        if current_version <= previous_version:
             raise CheckError(
-                "Release-relevant staged files changed, but the package version was not bumped.\n\n"
-                f"Current version: {head_version_text}\n"
-                f"Staged version: {staged_version_text}\n\n"
-                "Release-relevant staged files:\n"
+                "Release-relevant files changed, but the package version was not bumped.\n\n"
+                f"{previous_version_label}: {previous_version_text}\n"
+                f"{current_version_label}: {current_version_text}\n\n"
+                f"{files_label}:\n"
                 f"{format_staged_files(files_requiring_bump)}\n\n"
                 "Use zerover for package source or release metadata changes:\n"
                 "  uv version --bump patch\n"
@@ -220,30 +243,78 @@ def require_release_bump() -> None:
                 "  git push origin HEAD --tags"
             )
 
-    staged_lock_version = lock_version(index_file(LOCK_FILE), project_name)
-    if staged_lock_version != staged_version_text:
+    current_lock_version = lock_version(current_lock, project_name)
+    if current_lock_version != current_version_text:
         raise CheckError(
-            f"{LOCK_FILE} version for {project_name!r} is {staged_lock_version!r}, "
-            f"but {PROJECT_FILE} has {staged_version_text!r}.\n\n"
+            f"{LOCK_FILE} version for {project_name!r} is {current_lock_version!r}, "
+            f"but {PROJECT_FILE} has {current_version_text!r}.\n\n"
             "Run `uv version --bump patch` or `uv version --bump minor`, then stage both files:\n"
             "  git add pyproject.toml uv.lock"
         )
 
-    tag_name = f"v{staged_version_text}"
+    tag_name = f"v{current_version_text}"
     if tag_exists(tag_name):
-        previous = f" Previous version: {head_version_text}." if head_version_text else ""
+        previous = f" Previous version: {previous_version_text}." if previous_version_text else ""
         raise CheckError(
             f"Tag {tag_name!r} already exists.{previous}\n"
             "Bump to a new 0.MINOR.PATCH version before committing these changes."
         )
 
 
-def main() -> int:
-    if not should_require_release_bump():
-        return 0
+def require_release_bump() -> None:
+    require_release_bump_for_files(
+        files=staged_files(),
+        current_pyproject=index_file(PROJECT_FILE),
+        previous_pyproject=head_file(PROJECT_FILE),
+        current_lock=index_file(LOCK_FILE),
+        previous_version_label="Current version",
+        current_version_label="Staged version",
+        files_label="Release-relevant staged files",
+    )
+
+
+def require_release_bump_between(base_ref: str, head_ref: str) -> None:
+    head_pyproject = ref_file(head_ref, PROJECT_FILE)
+    if head_pyproject is None:
+        raise CheckError(f"{PROJECT_FILE} must be present at {head_ref!r}.")
+
+    head_lock = ref_file(head_ref, LOCK_FILE)
+    if head_lock is None:
+        raise CheckError(f"{LOCK_FILE} must be present at {head_ref!r}.")
+
+    require_release_bump_for_files(
+        files=changed_files_between(base_ref, head_ref),
+        current_pyproject=head_pyproject,
+        previous_pyproject=ref_file(base_ref, PROJECT_FILE),
+        current_lock=head_lock,
+        previous_version_label="Base version",
+        current_version_label="Head version",
+        files_label="Release-relevant changed files",
+    )
+
+
+def build_parser() -> ArgumentParser:
+    parser = ArgumentParser(description="Require package version bumps for release changes.")
+    parser.add_argument(
+        "--ci",
+        action="store_true",
+        help="Compare two refs instead of checking the staged index.",
+    )
+    parser.add_argument("--base-ref", help="Base Git ref for --ci mode.")
+    parser.add_argument("--head-ref", default="HEAD", help="Head Git ref for --ci mode.")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     try:
-        require_release_bump()
+        if args.ci:
+            if args.base_ref is None:
+                raise CheckError("--base-ref is required with --ci.")
+            require_release_bump_between(args.base_ref, args.head_ref)
+        elif should_require_release_bump():
+            require_release_bump()
     except CheckError as error:
         print(error, file=sys.stderr)
         return 1
