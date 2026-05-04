@@ -189,3 +189,58 @@ def test_vad_command_passes_vad_options(monkeypatch) -> None:
     assert cli.main(["vad", "project-dir", "--vad-threshold", "0.45"]) == 0
     assert calls["project"] == Path("project-dir")
     assert calls["kwargs"]["threshold"] == 0.45
+
+
+def test_render_contact_sheet_passes_options(monkeypatch) -> None:
+    calls = {}
+
+    def fake_render_contact_sheet(project: Path, **kwargs) -> Path:
+        calls["project"] = project
+        calls["kwargs"] = kwargs
+        return project / "output" / "sheet.png"
+
+    monkeypatch.setattr(cli, "render_contact_sheet", fake_render_contact_sheet)
+
+    assert (
+        cli.main(
+            [
+                "render",
+                "project-dir",
+                "--contact-sheet",
+                "--final-video",
+                "output/custom-final.mp4",
+                "--output",
+                "output/sheet.png",
+                "--overwrite",
+                "--dry-run",
+            ]
+        )
+        == 0
+    )
+    assert calls["project"] == Path("project-dir")
+    assert calls["kwargs"] == {
+        "final_video": Path("output/custom-final.mp4"),
+        "output": Path("output/sheet.png"),
+        "overwrite": True,
+        "dry_run": True,
+    }
+
+
+def test_render_contact_sheet_rejects_debug(monkeypatch, capsys) -> None:
+    def fake_render_contact_sheet(*args, **kwargs) -> Path:
+        raise AssertionError("render_contact_sheet should not be called")
+
+    monkeypatch.setattr(cli, "render_contact_sheet", fake_render_contact_sheet)
+
+    assert cli.main(["render", "project-dir", "--debug", "--contact-sheet"]) == 1
+    assert "Use either --debug or --contact-sheet" in capsys.readouterr().err
+
+
+def test_final_video_requires_contact_sheet(monkeypatch, capsys) -> None:
+    def fake_render_project(*args, **kwargs) -> Path:
+        raise AssertionError("render_project should not be called")
+
+    monkeypatch.setattr(cli, "render_project", fake_render_project)
+
+    assert cli.main(["render", "project-dir", "--final-video", "output/final.mp4"]) == 1
+    assert "--final-video can only be used with --contact-sheet" in capsys.readouterr().err

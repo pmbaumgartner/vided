@@ -137,6 +137,19 @@ The final output is:
 my-recording-project/output/final.mp4
 ```
 
+Render a contact sheet from the final video:
+
+```bash
+vided render my-recording-project --contact-sheet --overwrite
+```
+
+The contact sheet shows sampled frames from `output/final.mp4`. Frames that overlap
+redactions get an accent border.
+
+```text
+my-recording-project/output/contact-sheet.jpg
+```
+
 ## Trim behavior
 
 The default trim mode is `hybrid`:
@@ -186,6 +199,7 @@ my-recording-project/
   output/
     debug-preview.mp4
     final.mp4
+    contact-sheet.jpg
 ```
 
 `vad.wav` and `vad_ranges.json` exist only after using VAD.
@@ -277,6 +291,18 @@ Render to a custom path:
 
 ```bash
 vided render project-dir --output output/my-final.mp4 --overwrite
+```
+
+Render a contact sheet from the default final video:
+
+```bash
+vided render project-dir --contact-sheet --overwrite
+```
+
+Render a contact sheet from a custom final video:
+
+```bash
+vided render project-dir --contact-sheet --final-video output/my-final.mp4 --output output/my-sheet.jpg --overwrite
 ```
 
 `trim`, `frames`, and `render` also support `--dry-run`.

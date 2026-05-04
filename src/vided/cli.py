@@ -5,6 +5,7 @@ import re
 import sys
 from pathlib import Path
 
+from .contact_sheet import render_contact_sheet
 from .errors import VidedError
 from .ffmpeg import ToolError, ensure_tool
 from .frames import generate_frames
@@ -147,6 +148,17 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument(
         "--debug", action="store_true", help="Render visible rectangles instead of blur."
     )
+    render.add_argument(
+        "--contact-sheet",
+        action="store_true",
+        help="Render a contact sheet from the final video.",
+    )
+    render.add_argument(
+        "--final-video",
+        type=Path,
+        default=None,
+        help="Final video to sample when rendering a contact sheet.",
+    )
     render.add_argument("--output", type=Path, default=None)
     render.add_argument("--overwrite", action="store_true")
     render.add_argument("--dry-run", action="store_true")
@@ -236,6 +248,21 @@ def cmd_ui(args: argparse.Namespace) -> int:
 
 
 def cmd_render(args: argparse.Namespace) -> int:
+    if args.contact_sheet:
+        if args.debug:
+            raise ValueError("Use either --debug or --contact-sheet, not both.")
+        output = render_contact_sheet(
+            args.project,
+            final_video=args.final_video,
+            output=args.output,
+            overwrite=args.overwrite,
+            dry_run=args.dry_run,
+        )
+        print(f"Contact sheet: {output}")
+        return 0
+    if args.final_video is not None:
+        raise ValueError("--final-video can only be used with --contact-sheet.")
+
     output = render_project(
         args.project,
         debug=args.debug,

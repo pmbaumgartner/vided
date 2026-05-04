@@ -1,5 +1,6 @@
 """Public Python API for vided."""
 
+from .contact_sheet import render_contact_sheet
 from .errors import (
     ExternalToolError,
     OptionalDependencyError,
@@ -71,6 +72,7 @@ __all__ = [
     "probe_media",
     "project_paths",
     "read_json",
+    "render_contact_sheet",
     "render_project",
     "render_redactions",
     "run_trim_plan",
