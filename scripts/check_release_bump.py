@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 PROJECT_FILE = "pyproject.toml"
@@ -68,6 +69,19 @@ def git_stdout(args: list[str]) -> str:
     if result.returncode != 0:
         raise CheckError(result.stderr.strip() or f"git {' '.join(args)} failed")
     return result.stdout
+
+
+def current_branch() -> str:
+    return git_stdout(["branch", "--show-current"]).strip()
+
+
+def merge_in_progress() -> bool:
+    merge_head = git_stdout(["rev-parse", "--git-path", "MERGE_HEAD"]).strip()
+    return Path(merge_head).exists()
+
+
+def should_require_release_bump() -> bool:
+    return current_branch() == "main" or merge_in_progress()
 
 
 def staged_files() -> list[str]:
@@ -225,6 +239,9 @@ def require_release_bump() -> None:
 
 
 def main() -> int:
+    if not should_require_release_bump():
+        return 0
+
     try:
         require_release_bump()
     except CheckError as error:

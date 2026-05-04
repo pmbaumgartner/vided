@@ -72,6 +72,7 @@ def write_project(
 
 def init_repo(repo: Path) -> None:
     git(repo, "init", "-q")
+    git(repo, "branch", "-M", "main")
     git(repo, "config", "user.email", "test@example.com")
     git(repo, "config", "user.name", "Test User")
     write_project(repo, "0.1.0")
@@ -105,6 +106,17 @@ def test_source_files_require_staged_zerover_bump(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert "version was not bumped" in result.stderr
     assert "uv version --bump patch" in result.stderr
+
+
+def test_feature_branch_skips_zerover_bump_check(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    git(tmp_path, "switch", "-c", "feature")
+    tmp_path.joinpath("src/vided/__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    git(tmp_path, "add", "src/vided/__init__.py")
+
+    result = run_check(tmp_path)
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_source_files_pass_with_staged_lockstep_bump(tmp_path: Path) -> None:
