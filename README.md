@@ -16,6 +16,20 @@ It can:
 Everything is file-based and local. A project folder contains `project.json`,
 `redactions.json`, generated thumbnails, generated filtergraphs, and rendered outputs.
 
+## VAD trim example
+
+This example uses the 90-second public-domain NASA fixture at
+`tests/fixtures/media/realistic-speech-gaps.mp4`. The VAD trim keeps speech at
+normal speed and removes or speeds up the gaps, producing a 61.1-second output.
+
+**Input, 90.0s**
+
+https://github.com/user-attachments/assets/24b476e4-72d3-4bad-843a-3c801cc3adcb
+
+**VAD trim, 61.1s**
+
+https://github.com/user-attachments/assets/c0ccba07-e2be-45b0-a6a9-d4a7d57f3f28
+
 ## Best fit
 
 Use Vided for mostly static screen recordings where the sensitive area stays in a
@@ -195,9 +209,8 @@ vided render my-recording-project --audio-preset voice-safe --overwrite
 
 ## Example outputs
 
-These examples use the 90-second public-domain NASA fixture at
-`tests/fixtures/media/realistic-speech-gaps.mp4`. The MP4s are GitHub release
-assets so the repository does not need to store generated binaries.
+These additional examples use the same fixture. The `none` audio preset preview is
+omitted because it is the unchanged preview snippet.
 
 Regenerate them locally:
 
@@ -211,43 +224,20 @@ Regenerate and upload them to the `examples` release:
 scripts/generate_example_media.sh --upload
 ```
 
-| Clip | Duration | Compare |
-| --- | ---: | --- |
-| [Original fixture](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-input.mp4) | 90.0s | Source clip |
-| [Audio trim](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-trim-audio.mp4) | 83.1s | Default audio detector trim |
-| [VAD trim](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-trim-vad.mp4) | 61.1s | Speech-aware trim |
-| [Preview: none](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-none.mp4) | 12.5s | Default preview snippet, unchanged audio |
-| [Preview: level](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-level.mp4) | 12.5s | Same snippet with conservative loudness normalization |
-| [Preview: voice-safe](https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-voice-safe.mp4) | 12.5s | Same snippet with gentle voice cleanup |
+The generated MP4s are also uploaded as release assets at
+https://github.com/pmbaumgartner/vided/releases/tag/examples.
 
-<details>
-<summary>Standalone video URLs for GitHub preview</summary>
+**Audio detector trim, 83.1s**
 
-Original fixture
+https://github.com/user-attachments/assets/b3fa0e0c-a767-4ca6-a7eb-49278230bea1
 
-https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-input.mp4
+**Audio preset preview: level, 12.5s**
 
-Audio trim
+https://github.com/user-attachments/assets/965bb188-f499-4c42-924c-1755b85d1a81
 
-https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-trim-audio.mp4
+**Audio preset preview: voice-safe, 12.5s**
 
-VAD trim
-
-https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-trim-vad.mp4
-
-Preview: none
-
-https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-none.mp4
-
-Preview: level
-
-https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-level.mp4
-
-Preview: voice-safe
-
-https://github.com/pmbaumgartner/vided/releases/download/examples/realistic-speech-gaps-preview-voice-safe.mp4
-
-</details>
+https://github.com/user-attachments/assets/388c075f-d94b-4cf2-bab8-cff070fc38b1
 
 Render a contact sheet from the final video:
 
