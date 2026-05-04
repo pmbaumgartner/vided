@@ -59,11 +59,10 @@ uvx vided render project-dir --contact-sheet --overwrite
 
 ## Useful Variations
 
-Use VAD-based trimming when simple audio-level trimming is not good enough. Include the optional
-extra with `uvx --from`:
+Use VAD-based trimming when simple audio-level trimming is not good enough:
 
 ```bash
-uvx --from "vided[vad]" vided trim project-dir --detector vad --overwrite
+uvx vided trim project-dir --detector vad --overwrite
 ```
 
 Tune UI frame generation when the user needs denser or wider thumbnails:

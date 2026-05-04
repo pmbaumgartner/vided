@@ -58,7 +58,7 @@ jobs:
         run: uv run pytest -m "not e2e"
 
       - name: E2E tests
-        run: uv run --extra vad pytest --run-e2e -m e2e --browser chromium
+        run: uv run pytest --run-e2e -m e2e --browser chromium
 
   build:
     name: Build distributions

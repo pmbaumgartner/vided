@@ -3,7 +3,6 @@
 from .contact_sheet import render_contact_sheet
 from .errors import (
     ExternalToolError,
-    OptionalDependencyError,
     ProjectError,
     ValidationError,
     VidedError,
@@ -42,12 +41,11 @@ from .trimmer import (
 )
 from .vad import VadSettings, normalize_detector, run_vad_detection
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 
 __all__ = [
     "ExternalToolError",
     "OperationResult",
-    "OptionalDependencyError",
     "ProjectError",
     "ProjectPaths",
     "Rect",

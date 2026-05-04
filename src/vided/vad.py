@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from .errors import OptionalDependencyError, ProjectError, ValidationError
+from .errors import ProjectError, ValidationError
 from .ffmpeg import VideoInfo, ensure_tool, probe_media, run_command
 from .project import load_project, project_paths, read_json, write_json
 from .time_ranges import (
@@ -147,13 +147,8 @@ def extract_vad_audio(source: Path, output: Path) -> Path:
 
 
 def detect_speech_ranges(audio_path: Path, settings: VadSettings) -> list[TimeRange]:
-    try:
-        import numpy as np
-        import onnxruntime
-    except ImportError as exc:
-        raise OptionalDependencyError(
-            "Silero VAD ONNX support is not installed. Install it with `uv sync --extra vad`."
-        ) from exc
+    import numpy as np
+    import onnxruntime
 
     samples = read_wav_16k_mono_float32(audio_path, np_module=np)
     model = SileroOnnxVadModel(

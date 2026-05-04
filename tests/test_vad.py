@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import builtins
 import json
 import types
 import wave
@@ -85,20 +84,6 @@ def test_activity_ranges_from_vad_report_covers_normal_and_non_speech() -> None:
         (5.0, 6.0, True),
         (6.0, 8.0, False),
     ]
-
-
-def test_detect_speech_ranges_reports_missing_optional_dependency(monkeypatch, tmp_path) -> None:
-    real_import = builtins.__import__
-
-    def fake_import(name, *args, **kwargs):
-        if name == "onnxruntime":
-            raise ImportError("missing onnxruntime")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-
-    with pytest.raises(vad.OptionalDependencyError, match="uv sync --extra vad"):
-        vad.detect_speech_ranges(tmp_path / "vad.wav", vad.VadSettings())
 
 
 def test_read_wav_16k_mono_float32_reads_ffmpeg_wav(tmp_path) -> None:

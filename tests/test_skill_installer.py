@@ -91,5 +91,5 @@ def test_packaged_skill_has_required_metadata_and_uvx_guidance() -> None:
     assert "uvx vided trim" in content
     assert "uvx vided ui" in content
     assert "uvx vided render" in content
-    assert 'uvx --from "vided[vad]" vided trim' in content
+    assert "uvx vided trim project-dir --detector vad" in content
     assert "<command> --help" in content

@@ -1,18 +1,14 @@
 [project]
 name = "vided"
-version = "0.1.5"
+version = "0.1.6"
 description = "A stupid-simple local video silence speeder and rectangular blur redactor."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
-    "Pillow>=10.1",
-]
-
-[project.optional-dependencies]
-vad = [
     "onnxruntime>=1.16.1",
+    "Pillow>=10.1",
 ]
 
 [project.scripts]

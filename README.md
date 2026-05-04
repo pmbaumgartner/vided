@@ -42,12 +42,7 @@ For local development and source installs:
 - Python 3.11 or newer
 - `uv`
 
-Speech-based trimming with VAD is optional. Install the ONNX Runtime extra when you
-need it:
-
-```bash
-uv sync --extra vad
-```
+Speech-based trimming with VAD is included in the core package.
 
 ## Run from this repo
 
@@ -380,7 +375,7 @@ The pipeline is:
 
 ```text
 original video
-  -> audio-level or optional VAD activity detection
+  -> audio-level or VAD activity detection
   -> ffmpeg-backed speed/mute trim pass
   -> work/trimmed.mp4
   -> ffmpeg thumbnail generation
@@ -545,12 +540,12 @@ and license notes live beside each fixture as `*.LICENSE.md`.
 Run fixture e2e tests:
 
 ```bash
-uv run --extra vad pytest --run-e2e -m e2e
+uv run pytest --run-e2e -m e2e
 ```
 
 Install the Playwright browser once before browser e2e tests:
 
 ```bash
 uv run playwright install chromium
-uv run --extra vad pytest --run-e2e -m browser --browser chromium
+uv run pytest --run-e2e -m browser --browser chromium
 ```

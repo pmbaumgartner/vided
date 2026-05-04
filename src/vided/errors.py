@@ -15,7 +15,3 @@ class ValidationError(VidedError, ValueError):
 
 class ExternalToolError(VidedError, RuntimeError):
     """Raised when an external media tool is missing or fails."""
-
-
-class OptionalDependencyError(VidedError, RuntimeError):
-    """Raised when an optional dependency needed for a feature is missing."""

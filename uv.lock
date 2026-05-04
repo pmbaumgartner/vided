@@ -647,15 +647,11 @@ wheels = [
 
 [[package]]
 name = "vided"
-version = "0.1.5"
+version = "0.1.6"
 source = { editable = "." }
 dependencies = [
-    { name = "pillow" },
-]
-
-[package.optional-dependencies]
-vad = [
     { name = "onnxruntime" },
+    { name = "pillow" },
 ]
 
 [package.dev-dependencies]
@@ -670,10 +666,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "onnxruntime", marker = "extra == 'vad'", specifier = ">=1.16.1" },
+    { name = "onnxruntime", specifier = ">=1.16.1" },
     { name = "pillow", specifier = ">=10.1" },
 ]
-provides-extras = ["vad"]
 
 [package.metadata.requires-dev]
 dev = [
