@@ -1,6 +1,18 @@
 repos:
   - repo: local
     hooks:
+      - id: ruff-check
+        name: Ruff check
+        entry: uv run --no-sync ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        stages: [pre-commit]
+      - id: ruff-format
+        name: Ruff format
+        entry: uv run --no-sync ruff format
+        language: system
+        types_or: [python, pyi]
+        stages: [pre-commit]
       - id: require-zerover-bump
         name: Require zerover version bump
         entry: uv run --no-sync python scripts/check_release_bump.py

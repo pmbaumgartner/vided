@@ -478,6 +478,8 @@ uv run prek run --stage pre-commit --dry-run
 uv run prek run --stage pre-commit
 ```
 
+The hooks run Ruff formatting, Ruff lint checks, and the release-version bump guard.
+
 Every commit with package source or release metadata changes must bump the package
 version with zerover. This includes staged changes under `src/` and published package
 metadata in `pyproject.toml`, such as runtime dependencies, entry points, Python
