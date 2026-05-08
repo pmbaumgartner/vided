@@ -102,7 +102,7 @@ def _trim_options_from_cli(options: TrimCliOptions | None) -> TrimOptions:
 
 app = App(
     name="vided",
-    help="Simple local video silence speeder and rectangular blur redactor.",
+    help="Local CLI for speeding up silence and adding rectangular blur redactions.",
     help_formatter="plain",
     version=get_version,
     version_flags=["--version", "-v"],
@@ -145,7 +145,7 @@ def init(
     action = "linked" if symlink else "copied"
     print(f"Created project: {project_root.resolve()}")
     print(f"Source {action} to: {cfg['original_path']}")
-    print("Next: uv run vided trim <project>")
+    print("Next: uvx vided trim <project>")
     return 0
 
 

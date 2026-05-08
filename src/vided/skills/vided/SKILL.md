@@ -9,6 +9,13 @@ Vided is a local command-line tool for turning one source video into a project f
 silent sections, adding rectangular blur redactions through a browser UI, and rendering final
 output with optional audio presets. Use `uvx` so the tool can run without a project-local install.
 
+## Invocation Policy
+
+- Prefer `uvx vided ...` for normal user workflows. `uvx` is the short form of
+  `uv tool run`, so it runs Vided as an isolated command-line tool.
+- Use `uv tool install vided` only when the user wants a persistent `vided` command on PATH.
+- Use `uv run vided ...` only when working inside this repository as a contributor.
+
 Start with command help when options matter:
 
 ```bash
@@ -18,10 +25,12 @@ uvx vided <command> --help
 
 ## Standard Workflow
 
-1. Check local dependencies when diagnosing setup or ffmpeg problems:
+1. Optional: install the packaged skill for another agent. Skip this when this skill is already
+   installed in the current agent.
 
 ```bash
-uvx vided doctor
+uvx vided install-skill --agent codex
+uvx vided install-skill --agent claude
 ```
 
 2. Create a project from the original video. Use an explicit output directory when the user names
@@ -39,17 +48,18 @@ uvx vided init /path/to/input.mp4 --output-dir project-dir
 uvx vided trim project-dir --overwrite
 ```
 
-4. Open the annotation UI to review frames and draw rectangular redaction regions. If thumbnails are
+4. If the user only needs automatic trimming and does not need blur redactions, write the trimmed
+   video directly as the final artifact and stop.
+
+```bash
+uvx vided trim project-dir --final --overwrite
+```
+
+5. Open the annotation UI to review frames and draw rectangular redaction regions. If thumbnails are
    missing, the UI command generates them from the trimmed video.
 
 ```bash
 uvx vided ui project-dir
-```
-
-5. Render the final video after trimming and redactions are ready.
-
-```bash
-uvx vided render project-dir --overwrite
 ```
 
 6. Use a debug preview or contact sheet when reviewing redaction placement.
@@ -57,6 +67,12 @@ uvx vided render project-dir --overwrite
 ```bash
 uvx vided render project-dir --debug --overwrite
 uvx vided render project-dir --contact-sheet --overwrite
+```
+
+7. Render the final video after trimming and redactions are ready.
+
+```bash
+uvx vided render project-dir --overwrite
 ```
 
 ## Useful Variations
@@ -104,9 +120,16 @@ Render with an audio preset only after previewing when audio quality matters:
 uvx vided render project-dir --audio-preset voice-safe --overwrite
 ```
 
+Check local dependencies only when diagnosing setup or ffmpeg problems:
+
+```bash
+uvx vided doctor
+```
+
 ## Agent Guidance
 
 - Prefer the README and `uvx vided <command> --help` over guessing flags or file layout.
+- Treat Vided as a CLI tool, not as a Python library dependency.
 - Do not edit generated media by hand. Use vided commands to create projects, trim, review, and
   render.
 - Preserve the project directory as the source of truth: input media, work files, redaction JSON,

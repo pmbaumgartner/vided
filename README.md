@@ -1,11 +1,14 @@
 # Vided
 
-Vided is a small local tool for making screen recordings shorter and safer to
-share.
+Vided is a small local command-line tool for making screen recordings shorter
+and safer to share.
 
 It trims dead air, speeds up longer pauses, and lets you blur fixed rectangular
 areas like emails, account IDs, tokens, URL bars, sidebars, or terminal panes. It
 runs locally with `ffmpeg`; your video does not leave your machine.
+
+Vided is intended to be used as a CLI tool with `uvx` or `uv tool`, not as a
+Python library dependency.
 
 ## Example
 
@@ -21,52 +24,64 @@ https://github.com/user-attachments/assets/24b476e4-72d3-4bad-843a-3c801cc3adcb
 
 https://github.com/user-attachments/assets/c0ccba07-e2be-45b0-a6a9-d4a7d57f3f28
 
-## Install
+## Run as a Tool
 
 Requirements:
 
+- `uv`
 - `ffmpeg`
 - `ffprobe`
-- Python 3.11 or newer
+- Python 3.11 or newer, provided by `uv` or your system
 
-Run once with `uvx`:
+Run Vided with `uvx` for one-off CLI use. `uvx` is the short form of
+`uv tool run`:
 
 ```bash
 uvx vided --help
 ```
 
-Or install as a tool:
+For frequent use, install the command persistently:
 
 ```bash
 uv tool install vided
-vided doctor
+vided --help
 ```
 
-From this repo:
+The examples below use `uvx vided ...` so they work without a project-local
+install.
+
+## Workflow
+
+Optional: install the packaged coding-agent skill:
 
 ```bash
-uv sync
-uv run vided doctor
+uvx vided install-skill --agent codex
+uvx vided install-skill --agent claude
 ```
-
-## Quick Start
 
 Create a project:
 
 ```bash
-vided init /path/to/recording.mp4 --output-dir my-video
+uvx vided init /path/to/recording.mp4 --output-dir my-video
 ```
 
-Trim silence and write the result directly to `output/final.mp4`:
+Trim silence:
 
 ```bash
-vided trim my-video --detector vad --final --overwrite
+uvx vided trim my-video --detector vad --overwrite
+```
+
+If you only need automatic trimming and do not need blur redactions, write the
+trimmed result directly to `output/final.mp4` and stop:
+
+```bash
+uvx vided trim my-video --detector vad --final --overwrite
 ```
 
 For redaction, open the local browser UI:
 
 ```bash
-vided ui my-video
+uvx vided ui my-video
 ```
 
 In the UI:
@@ -80,13 +95,13 @@ In the UI:
 Render a visible-box debug preview:
 
 ```bash
-vided render my-video --debug --overwrite
+uvx vided render my-video --debug --overwrite
 ```
 
 Render the final blurred video:
 
 ```bash
-vided render my-video --overwrite
+uvx vided render my-video --overwrite
 ```
 
 ## Common Tasks
@@ -94,38 +109,31 @@ vided render my-video --overwrite
 Trim with the default audio-level detector:
 
 ```bash
-vided trim my-video --final --overwrite
+uvx vided trim my-video --final --overwrite
 ```
 
 Trim with speech-aware VAD:
 
 ```bash
-vided trim my-video --detector vad --final --overwrite
+uvx vided trim my-video --detector vad --final --overwrite
 ```
 
 Preview an audio preset on the longest detected speech/sound segment:
 
 ```bash
-vided audio-preview my-video --audio-preset voice-safe --overwrite
+uvx vided audio-preview my-video --audio-preset voice-safe --overwrite
 ```
 
 Render with an audio preset:
 
 ```bash
-vided render my-video --audio-preset voice-safe --overwrite
+uvx vided render my-video --audio-preset voice-safe --overwrite
 ```
 
 Render a contact sheet from the final video:
 
 ```bash
-vided render my-video --contact-sheet --overwrite
-```
-
-Install the packaged coding-agent skill:
-
-```bash
-vided install-skill --agent codex
-vided install-skill --agent claude
+uvx vided render my-video --contact-sheet --overwrite
 ```
 
 ## Audio Presets
@@ -141,13 +149,13 @@ voice-safe  gentle voice cleanup plus the same conservative loudness target
 List the current presets:
 
 ```bash
-vided audio-presets
+uvx vided audio-presets
 ```
 
 Choose your own preview snippet:
 
 ```bash
-vided audio-preview my-video --audio-preset level --start 60 --duration 15 --overwrite
+uvx vided audio-preview my-video --audio-preset level --start 60 --duration 15 --overwrite
 ```
 
 ## More Examples
@@ -195,7 +203,7 @@ The default detector uses ffmpeg-decoded audio levels. Use VAD for more
 speech-aware trimming:
 
 ```bash
-vided trim my-video --detector vad --overwrite
+uvx vided trim my-video --detector vad --overwrite
 ```
 
 Trimmed outputs contain only rendered video and audio streams. Subtitle streams,
@@ -229,12 +237,12 @@ debug and final renders.
 Use command help for details:
 
 ```bash
-vided --help
-vided init --help
-vided trim --help
-vided ui --help
-vided render --help
-vided audio-preview --help
+uvx vided --help
+uvx vided init --help
+uvx vided trim --help
+uvx vided ui --help
+uvx vided render --help
+uvx vided audio-preview --help
 ```
 
 Main commands:
@@ -250,6 +258,12 @@ doctor          check ffmpeg/ffprobe availability
 install-skill   install the packaged coding-agent skill
 ```
 
+When diagnosing local setup or `ffmpeg` problems, run:
+
+```bash
+uvx vided doctor
+```
+
 ## Limitations
 
 - Rectangles are fixed. There is no object tracking.
@@ -261,6 +275,13 @@ install-skill   install the packaged coding-agent skill
 - The local UI server binds to `127.0.0.1` by default. Do not expose it publicly.
 
 ## Development
+
+From a repo checkout, use `uv run` for contributor workflows:
+
+```bash
+uv sync
+uv run vided doctor
+```
 
 Run tests:
 

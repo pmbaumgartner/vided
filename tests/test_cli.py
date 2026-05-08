@@ -31,7 +31,7 @@ def test_init_uses_derived_project_dir_when_only_source_is_given(monkeypatch) ->
     assert calls["kwargs"]["copy_input"] is True
 
 
-def test_init_accepts_explicit_output_dir_option(monkeypatch) -> None:
+def test_init_accepts_explicit_output_dir_option(monkeypatch, capsys) -> None:
     calls = {}
 
     def fake_create_project(source: Path, root: Path, **kwargs) -> dict[str, str]:
@@ -45,6 +45,9 @@ def test_init_accepts_explicit_output_dir_option(monkeypatch) -> None:
     assert cli.main(["init", "input.mp4", "--output-dir", "custom-project"]) == 0
     assert calls["source"] == Path("input.mp4")
     assert calls["root"] == Path("custom-project")
+    output = capsys.readouterr().out
+    assert "Next: uvx vided trim <project>" in output
+    assert "uv run vided" not in output
 
 
 def test_init_rejects_positional_project(monkeypatch, capsys) -> None:
@@ -74,6 +77,7 @@ def test_doctor_checks_only_ffmpeg_and_ffprobe(monkeypatch, capsys) -> None:
 def test_top_level_help_lists_public_commands_and_version_flags() -> None:
     help_text = cli.help_text()
 
+    assert "Local CLI" in help_text
     assert "frames:" not in help_text
     assert "ui:" in help_text
     assert "install-skill:" in help_text

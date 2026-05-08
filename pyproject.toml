@@ -1,7 +1,7 @@
 [project]
 name = "vided"
-version = "0.1.13"
-description = "A simple local video silence speeder and rectangular blur redactor."
+version = "0.1.14"
+description = "A local CLI for speeding up silence and adding rectangular blur redactions."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
