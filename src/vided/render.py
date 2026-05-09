@@ -7,7 +7,7 @@ from typing import Any
 
 from .audio_presets import audio_filter_for_preset
 from .ffmpeg import ensure_tool, probe_media, run_command
-from .filtergraph import build_debug_filtergraph, build_final_filtergraph, write_filtergraph
+from .filtergraph import build_final_filtergraph, write_filtergraph
 from .project import load_project, project_paths
 from .redactions import load_redactions, render_redactions
 
@@ -48,7 +48,6 @@ def copy_trimmed_to_final(
 def render_project(
     project_root: Path,
     *,
-    debug: bool = False,
     output: Path | None = None,
     audio_preset: str | None = None,
     overwrite: bool = False,
@@ -63,8 +62,8 @@ def render_project(
 
     redaction_data = load_redactions(project_root)
     redactions = render_redactions(redaction_data)
-    graph = build_debug_filtergraph(redactions) if debug else build_final_filtergraph(redactions)
-    filtergraph_path = p.work_dir / ("filtergraph.debug.txt" if debug else "filtergraph.txt")
+    graph = build_final_filtergraph(redactions)
+    filtergraph_path = p.work_dir / "filtergraph.txt"
     if not dry_run:
         write_filtergraph(filtergraph_path, graph)
 
@@ -81,7 +80,7 @@ def render_project(
     audio_filter = audio_filter_for_preset(str(selected_audio_preset or "none"))
 
     if output is None:
-        output = p.output_dir / ("debug-preview.mp4" if debug else "final.mp4")
+        output = p.output_dir / "final.mp4"
     elif not output.is_absolute():
         output = p.root / output
     if not dry_run:

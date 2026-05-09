@@ -80,6 +80,7 @@ def test_top_level_help_lists_public_commands_and_version_flags() -> None:
     assert "Local CLI" in help_text
     assert "frames:" not in help_text
     assert "ui:" in help_text
+    assert "contact-sheet:" in help_text
     assert "install-skill:" in help_text
     assert "validate:" not in help_text
     assert "--version" in help_text
@@ -244,41 +245,6 @@ def test_trim_can_publish_final_video(monkeypatch, capsys) -> None:
     assert "Final video: project-dir/output/auto-edited.mp4" in capsys.readouterr().out
 
 
-def test_render_contact_sheet_passes_options(monkeypatch) -> None:
-    calls = {}
-
-    def fake_render_contact_sheet(project: Path, **kwargs) -> Path:
-        calls["project"] = project
-        calls["kwargs"] = kwargs
-        return project / "output" / "sheet.png"
-
-    monkeypatch.setattr(cli, "render_contact_sheet", fake_render_contact_sheet)
-
-    assert (
-        cli.main(
-            [
-                "render",
-                "project-dir",
-                "--contact-sheet",
-                "--final-video",
-                "output/custom-final.mp4",
-                "--output",
-                "output/sheet.png",
-                "--overwrite",
-                "--dry-run",
-            ]
-        )
-        == 0
-    )
-    assert calls["project"] == Path("project-dir")
-    assert calls["kwargs"] == {
-        "final_video": Path("output/custom-final.mp4"),
-        "output": Path("output/sheet.png"),
-        "overwrite": True,
-        "dry_run": True,
-    }
-
-
 def test_render_passes_audio_preset(monkeypatch) -> None:
     calls = {}
 
@@ -291,7 +257,70 @@ def test_render_passes_audio_preset(monkeypatch) -> None:
 
     assert cli.main(["render", "project-dir", "--audio-preset", "voice-safe"]) == 0
     assert calls["project"] == Path("project-dir")
-    assert calls["kwargs"]["audio_preset"] == "voice-safe"
+    assert calls["kwargs"] == {
+        "audio_preset": "voice-safe",
+        "output": None,
+        "overwrite": False,
+        "dry_run": False,
+    }
+
+
+def test_contact_sheet_defaults_to_preview_source(monkeypatch) -> None:
+    calls = {}
+
+    def fake_render_contact_sheet(project: Path, **kwargs) -> Path:
+        calls["project"] = project
+        calls["kwargs"] = kwargs
+        return project / "output" / "contact-sheet-preview.jpg"
+
+    monkeypatch.setattr(cli, "render_contact_sheet", fake_render_contact_sheet)
+
+    assert cli.main(["contact-sheet", "project-dir"]) == 0
+    assert calls["project"] == Path("project-dir")
+    assert calls["kwargs"] == {
+        "source": "preview",
+        "final_video": None,
+        "output": None,
+        "overwrite": False,
+        "dry_run": False,
+    }
+
+
+def test_contact_sheet_passes_final_source_options(monkeypatch) -> None:
+    calls = {}
+
+    def fake_render_contact_sheet(project: Path, **kwargs) -> Path:
+        calls["project"] = project
+        calls["kwargs"] = kwargs
+        return project / "output" / "sheet.png"
+
+    monkeypatch.setattr(cli, "render_contact_sheet", fake_render_contact_sheet)
+
+    assert (
+        cli.main(
+            [
+                "contact-sheet",
+                "project-dir",
+                "--source",
+                "final",
+                "--final-video",
+                "output/custom-final.mp4",
+                "--output",
+                "output/sheet.png",
+                "--overwrite",
+                "--dry-run",
+            ]
+        )
+        == 0
+    )
+    assert calls["project"] == Path("project-dir")
+    assert calls["kwargs"] == {
+        "source": "final",
+        "final_video": Path("output/custom-final.mp4"),
+        "output": Path("output/sheet.png"),
+        "overwrite": True,
+        "dry_run": True,
+    }
 
 
 def test_audio_presets_lists_available_presets(capsys) -> None:
@@ -342,36 +371,6 @@ def test_audio_preview_passes_options(monkeypatch, capsys) -> None:
         },
     }
     assert "Audio preview: project-dir/output/preview.mp4" in capsys.readouterr().out
-
-
-def test_render_contact_sheet_rejects_debug(monkeypatch, capsys) -> None:
-    def fake_render_contact_sheet(*args, **kwargs) -> Path:
-        raise AssertionError("render_contact_sheet should not be called")
-
-    monkeypatch.setattr(cli, "render_contact_sheet", fake_render_contact_sheet)
-
-    assert cli.main(["render", "project-dir", "--debug", "--contact-sheet"]) == 1
-    assert "Use either --debug or --contact-sheet" in capsys.readouterr().err
-
-
-def test_render_contact_sheet_rejects_audio_preset(monkeypatch, capsys) -> None:
-    def fake_render_contact_sheet(*args, **kwargs) -> Path:
-        raise AssertionError("render_contact_sheet should not be called")
-
-    monkeypatch.setattr(cli, "render_contact_sheet", fake_render_contact_sheet)
-
-    assert cli.main(["render", "project-dir", "--contact-sheet", "--audio-preset", "level"]) == 1
-    assert "--audio-preset can only be used when rendering video" in capsys.readouterr().err
-
-
-def test_final_video_requires_contact_sheet(monkeypatch, capsys) -> None:
-    def fake_render_project(*args, **kwargs) -> Path:
-        raise AssertionError("render_project should not be called")
-
-    monkeypatch.setattr(cli, "render_project", fake_render_project)
-
-    assert cli.main(["render", "project-dir", "--final-video", "output/final.mp4"]) == 1
-    assert "--final-video can only be used with --contact-sheet" in capsys.readouterr().err
 
 
 def test_install_skill_passes_options(monkeypatch, capsys) -> None:

@@ -24,6 +24,16 @@ https://github.com/user-attachments/assets/24b476e4-72d3-4bad-843a-3c801cc3adcb
 
 https://github.com/user-attachments/assets/c0ccba07-e2be-45b0-a6a9-d4a7d57f3f28
 
+That output has no blur redactions, so it can be generated with the automatic
+trim workflow:
+
+```bash
+uvx vided init tests/fixtures/media/realistic-speech-gaps.mp4 --output-dir realistic-speech-gaps-vad --symlink --overwrite
+uvx vided trim realistic-speech-gaps-vad --detector vad --final --overwrite
+```
+
+The final clip is written to `realistic-speech-gaps-vad/output/final.mp4`.
+
 ## Run as a Tool
 
 Requirements:
@@ -92,16 +102,24 @@ In the UI:
 4. Click a thumbnail where it ends.
 5. Click **Add redaction**.
 
-Render a visible-box debug preview:
+Render a contact sheet preview to review redaction placement without rendering
+the full final video. Preview sheets sample the trimmed video and show each
+redaction as a translucent outlined blur region:
 
 ```bash
-uvx vided render my-video --debug --overwrite
+uvx vided contact-sheet my-video --overwrite
 ```
 
 Render the final blurred video:
 
 ```bash
 uvx vided render my-video --overwrite
+```
+
+Optional: render a contact sheet from the final video:
+
+```bash
+uvx vided contact-sheet my-video --source final --overwrite
 ```
 
 ## Common Tasks
@@ -130,10 +148,10 @@ Render with an audio preset:
 uvx vided render my-video --audio-preset voice-safe --overwrite
 ```
 
-Render a contact sheet from the final video:
+Render a contact sheet preview:
 
 ```bash
-uvx vided render my-video --contact-sheet --overwrite
+uvx vided contact-sheet my-video --overwrite
 ```
 
 ## Audio Presets
@@ -222,7 +240,7 @@ my-video/
   input/original.mp4
   work/trimmed.mp4
   work/frames/
-  output/debug-preview.mp4
+  output/contact-sheet-preview.jpg
   output/final.mp4
   output/contact-sheet.jpg
 ```
@@ -230,7 +248,7 @@ my-video/
 With VAD, Vided also writes `work/vad.wav` and `work/vad_ranges.json`.
 
 Redactions are created against the trimmed video, so redaction timestamps match
-debug and final renders.
+contact sheet previews and final renders.
 
 ## Commands
 
@@ -241,6 +259,7 @@ uvx vided --help
 uvx vided init --help
 uvx vided trim --help
 uvx vided ui --help
+uvx vided contact-sheet --help
 uvx vided render --help
 uvx vided audio-preview --help
 ```
@@ -251,7 +270,8 @@ Main commands:
 init            create a one-video project
 trim            remove or speed up silence
 ui              open the local redaction UI
-render          render debug, final, or contact sheet output
+contact-sheet   render a preview or final contact sheet
+render          render final video output
 audio-presets   list audio presets
 audio-preview   render a short audio preset preview
 doctor          check ffmpeg/ffprobe availability
@@ -269,7 +289,8 @@ uvx vided doctor
 - Rectangles are fixed. There is no object tracking.
 - Changing trim settings after redacting means regenerating thumbnails and
   reviewing redactions.
-- The UI uses frame thumbnails plus debug render. It is not a full video editor.
+- The UI uses frame thumbnails plus contact sheet previews. It is not a full
+  video editor.
 - Frame times follow the thumbnail interval, so this is not for frame-perfect cuts.
 - Rotation metadata and unusual pixel aspect ratios are not normalized.
 - The local UI server binds to `127.0.0.1` by default. Do not expose it publicly.

@@ -29,6 +29,7 @@ SpeedIndicatorCorner = Literal["top-left", "top-right", "bottom-left", "bottom-r
 SpeedIndicatorStyle = Literal["dark", "light"]
 AudioPreset = Literal["none", "level", "voice-safe"]
 AgentName = Literal["codex", "claude"]
+ContactSheetSource = Literal["preview", "final"]
 
 StoreTrue = Parameter(negative=())
 
@@ -221,50 +222,18 @@ def ui(
     return 0
 
 
-@app.command(help="Render final or debug preview video.", sort_key=4)
+@app.command(help="Render the final video.", sort_key=4)
 def render(
     project: Path,
     /,
     *,
-    debug: Annotated[
-        bool,
-        StoreTrue,
-        Parameter(help="Render visible rectangles instead of blur."),
-    ] = False,
-    contact_sheet: Annotated[
-        bool,
-        StoreTrue,
-        Parameter(help="Render a contact sheet from the final video."),
-    ] = False,
-    final_video: Annotated[
-        Path | None,
-        Parameter(help="Final video to sample when rendering a contact sheet."),
-    ] = None,
     audio_preset: AudioPreset | None = None,
     output: Path | None = None,
     overwrite: Annotated[bool, StoreTrue] = False,
     dry_run: Annotated[bool, StoreTrue] = False,
 ) -> int:
-    if contact_sheet:
-        if debug:
-            raise ValueError("Use either --debug or --contact-sheet, not both.")
-        if audio_preset is not None:
-            raise ValueError("--audio-preset can only be used when rendering video.")
-        sheet = render_contact_sheet(
-            project,
-            final_video=final_video,
-            output=output,
-            overwrite=overwrite,
-            dry_run=dry_run,
-        )
-        print(f"Contact sheet: {sheet}")
-        return 0
-    if final_video is not None:
-        raise ValueError("--final-video can only be used with --contact-sheet.")
-
     rendered = render_project(
         project,
-        debug=debug,
         output=output,
         audio_preset=audio_preset,
         overwrite=overwrite,
@@ -274,14 +243,44 @@ def render(
     return 0
 
 
-@app.command(name="audio-presets", help="List available audio render presets.", sort_key=5)
+@app.command(
+    name="contact-sheet",
+    help="Render a contact sheet for preview or final review.",
+    sort_key=5,
+)
+def contact_sheet_command(
+    project: Path,
+    /,
+    *,
+    source: ContactSheetSource = "preview",
+    final_video: Annotated[
+        Path | None,
+        Parameter(help="Final video to sample when using --source final."),
+    ] = None,
+    output: Path | None = None,
+    overwrite: Annotated[bool, StoreTrue] = False,
+    dry_run: Annotated[bool, StoreTrue] = False,
+) -> int:
+    sheet = render_contact_sheet(
+        project,
+        source=source,
+        final_video=final_video,
+        output=output,
+        overwrite=overwrite,
+        dry_run=dry_run,
+    )
+    print(f"Contact sheet: {sheet}")
+    return 0
+
+
+@app.command(name="audio-presets", help="List available audio render presets.", sort_key=6)
 def audio_presets() -> int:
     for preset in list_audio_presets():
         print(f"{preset.name}\t{preset.description}")
     return 0
 
 
-@app.command(name="audio-preview", help="Render a short audio preset preview.", sort_key=6)
+@app.command(name="audio-preview", help="Render a short audio preset preview.", sort_key=7)
 def audio_preview(
     project: Path,
     /,
@@ -306,7 +305,7 @@ def audio_preview(
     return 0
 
 
-@app.command(show=False, sort_key=7)
+@app.command(show=False, sort_key=8)
 def validate(project: Path, /) -> int:
     data = load_redactions(project)
     validate_redaction_document(data)
@@ -315,7 +314,7 @@ def validate(project: Path, /) -> int:
     return 0
 
 
-@app.command(help="Check external tool availability.", sort_key=8)
+@app.command(help="Check external tool availability.", sort_key=9)
 def doctor() -> int:
     ok = True
     for tool in ["ffmpeg", "ffprobe"]:
@@ -328,7 +327,7 @@ def doctor() -> int:
     return 0 if ok else 1
 
 
-@app.command(name="install-skill", help="Install the packaged agent skill.", sort_key=9)
+@app.command(name="install-skill", help="Install the packaged agent skill.", sort_key=10)
 def install_skill_command(
     *,
     agent: Annotated[AgentName, Parameter(help="Personal skill directory to install into.")],

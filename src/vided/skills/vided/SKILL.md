@@ -62,17 +62,24 @@ uvx vided trim project-dir --final --overwrite
 uvx vided ui project-dir
 ```
 
-6. Use a debug preview or contact sheet when reviewing redaction placement.
+6. Render a contact sheet preview when reviewing redaction placement. Preview sheets sample the
+   trimmed video and show translucent outlined blur regions, so they are faster than rendering a
+   full final video.
 
 ```bash
-uvx vided render project-dir --debug --overwrite
-uvx vided render project-dir --contact-sheet --overwrite
+uvx vided contact-sheet project-dir --overwrite
 ```
 
 7. Render the final video after trimming and redactions are ready.
 
 ```bash
 uvx vided render project-dir --overwrite
+```
+
+8. Optional: render a contact sheet from the final video.
+
+```bash
+uvx vided contact-sheet project-dir --source final --overwrite
 ```
 
 ## Useful Variations
@@ -100,6 +107,12 @@ Render to a specific output path when the user asks for a named artifact:
 
 ```bash
 uvx vided render project-dir --output output/custom-final.mp4 --overwrite
+```
+
+Render a final-video contact sheet from a custom final video:
+
+```bash
+uvx vided contact-sheet project-dir --source final --final-video output/custom-final.mp4 --overwrite
 ```
 
 Preview a small audio preset before rendering. Without `--start`, vided chooses the longest

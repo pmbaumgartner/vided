@@ -23,28 +23,6 @@ def _clean_color(value: str | None, fallback: str = "black") -> str:
     return fallback
 
 
-def build_debug_filtergraph(redactions: list[Redaction]) -> str:
-    """Build a visible-box preview filtergraph."""
-
-    if not redactions:
-        return "[0:v]setpts=PTS-STARTPTS[vout]"
-
-    parts: list[str] = ["[0:v]setpts=PTS-STARTPTS[v0]"]
-    current = "v0"
-    for idx, r in enumerate(redactions, start=1):
-        out = "vout" if idx == len(redactions) else f"v{idx}"
-        enable = _expr_between(r.start, r.end)
-        # Fill with a translucent box and draw an opaque border. This is easier to see than a border only.
-        parts.append(
-            f"[{current}]drawbox=x={r.rect.x}:y={r.rect.y}:w={r.rect.w}:h={r.rect.h}:"
-            f"color=red@0.28:t=fill:enable='{enable}',"
-            f"drawbox=x={r.rect.x}:y={r.rect.y}:w={r.rect.w}:h={r.rect.h}:"
-            f"color=red:t=3:enable='{enable}'[{out}]"
-        )
-        current = out
-    return ";\n".join(parts)
-
-
 def build_final_filtergraph(redactions: list[Redaction]) -> str:
     """Build the final blur/solid redaction filtergraph."""
 

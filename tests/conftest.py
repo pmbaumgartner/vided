@@ -22,6 +22,7 @@ from vided.ui_server import make_handler
 REALISTIC_SHORT_FIXTURE = (
     Path(__file__).parent / "fixtures" / "media" / "realistic-speech-gaps-short.mp4"
 )
+REALISTIC_FIXTURE = Path(__file__).parent / "fixtures" / "media" / "realistic-speech-gaps.mp4"
 
 
 @dataclass(frozen=True)
@@ -53,11 +54,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 @pytest.fixture
 def realistic_short_fixture() -> Path:
-    if not REALISTIC_SHORT_FIXTURE.exists():
-        pytest.skip(f"fixture is missing: {REALISTIC_SHORT_FIXTURE}")
-    if REALISTIC_SHORT_FIXTURE.stat().st_size < 1024:
-        pytest.skip(f"fixture appears to be a Git LFS pointer: {REALISTIC_SHORT_FIXTURE}")
-    return REALISTIC_SHORT_FIXTURE
+    return _fixture_media_path(REALISTIC_SHORT_FIXTURE)
+
+
+@pytest.fixture
+def realistic_fixture() -> Path:
+    return _fixture_media_path(REALISTIC_FIXTURE)
 
 
 @pytest.fixture
@@ -81,10 +83,44 @@ def prepared_e2e_project(
     realistic_short_fixture: Path,
     require_tools: Callable[..., None],
 ) -> PreparedE2EProject:
+    return _prepare_e2e_project(
+        tmp_path=tmp_path,
+        fixture=realistic_short_fixture,
+        require_tools=require_tools,
+    )
+
+
+@pytest.fixture
+def prepared_full_e2e_project(
+    tmp_path: Path,
+    realistic_fixture: Path,
+    require_tools: Callable[..., None],
+) -> PreparedE2EProject:
+    return _prepare_e2e_project(
+        tmp_path=tmp_path,
+        fixture=realistic_fixture,
+        require_tools=require_tools,
+    )
+
+
+def _fixture_media_path(path: Path) -> Path:
+    if not path.exists():
+        pytest.skip(f"fixture is missing: {path}")
+    if path.stat().st_size < 1024:
+        pytest.skip(f"fixture appears to be a Git LFS pointer: {path}")
+    return path
+
+
+def _prepare_e2e_project(
+    *,
+    tmp_path: Path,
+    fixture: Path,
+    require_tools: Callable[..., None],
+) -> PreparedE2EProject:
     require_tools("ffmpeg", "ffprobe")
 
     project = tmp_path / "e2e-project"
-    create_project(realistic_short_fixture, project, copy_input=False)
+    create_project(fixture, project, copy_input=False)
     trimmed = run_trim_plan(plan_trim(project), overwrite=True).path
     trimmed_info = probe_media(trimmed)
     frames_json = generate_frames(
