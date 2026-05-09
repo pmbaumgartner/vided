@@ -15,9 +15,18 @@ def test_final_filtergraph_contains_crop_blur_and_overlay() -> None:
         ]
     )
     assert "crop=w=100:h=80:x=10:y=20" in graph
-    assert "boxblur=luma_radius=18:luma_power=3:chroma_radius=18:chroma_power=3" in graph
-    assert "overlay=x='if(between(t\\,1.000000\\,2.000000)\\,10\\,NAN)'" in graph
+    assert (
+        "boxblur=luma_radius=18:luma_power=3:chroma_radius=18:chroma_power=3:"
+        "enable='between(t\\,1.000000\\,2.000000)'"
+    ) in graph
+    assert "overlay=x=10:y=20:eof_action=pass:enable='between(t\\,1.000000\\,2.000000)'" in graph
     assert "[vout]" in graph
+
+
+def test_final_filtergraph_accepts_custom_labels() -> None:
+    graph = build_final_filtergraph([], input_label="trimv", output_label="done")
+
+    assert graph == "[trimv]setpts=PTS-STARTPTS[done]"
 
 
 def test_chroma_radius_is_clamped_for_small_rectangles() -> None:

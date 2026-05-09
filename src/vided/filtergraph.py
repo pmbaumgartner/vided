@@ -13,28 +13,29 @@ def _expr_between(start: float, end: float) -> str:
     return f"between(t\\,{start:.6f}\\,{end:.6f})"
 
 
-def _if_between_x(start: float, end: float, x: int) -> str:
-    return f"if({_expr_between(start, end)}\\,{x}\\,NAN)"
-
-
 def _clean_color(value: str | None, fallback: str = "black") -> str:
     if value and _COLOR_RE.match(value):
         return value
     return fallback
 
 
-def build_final_filtergraph(redactions: list[Redaction]) -> str:
+def build_final_filtergraph(
+    redactions: list[Redaction],
+    *,
+    input_label: str = "0:v",
+    output_label: str = "vout",
+) -> str:
     """Build the final blur/solid redaction filtergraph."""
 
     if not redactions:
-        return "[0:v]setpts=PTS-STARTPTS[vout]"
+        return f"[{input_label}]setpts=PTS-STARTPTS[{output_label}]"
 
     solid = [r for r in redactions if r.style.get("type") == "solid"]
     blur = [r for r in redactions if r.style.get("type", "blur") != "solid"]
 
     parts: list[str] = []
     base_label = "base0"
-    parts.append(f"[0:v]setpts=PTS-STARTPTS[{base_label}]")
+    parts.append(f"[{input_label}]setpts=PTS-STARTPTS[{base_label}]")
 
     for idx, r in enumerate(solid, start=1):
         out = f"base{idx}"
@@ -48,7 +49,7 @@ def build_final_filtergraph(redactions: list[Redaction]) -> str:
 
     if not blur:
         # Relabel the last base as vout. ffmpeg's null filter is a simple way to do that.
-        parts.append(f"[{base_label}]null[vout]")
+        parts.append(f"[{base_label}]null[{output_label}]")
         return ";\n".join(parts)
 
     split_labels = "".join(f"[r{idx}src]" for idx in range(len(blur)))
@@ -63,17 +64,21 @@ def build_final_filtergraph(redactions: list[Redaction]) -> str:
         min_side = max(1, min(r.rect.w, r.rect.h))
         luma_radius = max(1, min(requested_radius, max(1, min_side // 2)))
         chroma_radius = max(1, min(requested_radius, max(1, min_side // 4)))
+        enable = _expr_between(r.start, r.end)
         parts.append(
             f"[r{idx}src]crop=w={r.rect.w}:h={r.rect.h}:x={r.rect.x}:y={r.rect.y},"
             f"boxblur=luma_radius={luma_radius}:luma_power={power}:"
-            f"chroma_radius={chroma_radius}:chroma_power={power}[r{idx}]"
+            f"chroma_radius={chroma_radius}:chroma_power={power}:enable='{enable}'[r{idx}]"
         )
 
     current = "base"
     for idx, r in enumerate(blur):
-        out = "vout" if idx == len(blur) - 1 else f"vblur{idx}"
-        x_expr = _if_between_x(r.start, r.end, r.rect.x)
-        parts.append(f"[{current}][r{idx}]overlay=x='{x_expr}':y={r.rect.y}:eof_action=pass[{out}]")
+        out = output_label if idx == len(blur) - 1 else f"vblur{idx}"
+        enable = _expr_between(r.start, r.end)
+        parts.append(
+            f"[{current}][r{idx}]overlay=x={r.rect.x}:y={r.rect.y}:"
+            f"eof_action=pass:enable='{enable}'[{out}]"
+        )
         current = out
 
     return ";\n".join(parts)

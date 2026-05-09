@@ -30,6 +30,7 @@ SpeedIndicatorStyle = Literal["dark", "light"]
 AudioPreset = Literal["none", "level", "voice-safe"]
 AgentName = Literal["codex", "claude"]
 ContactSheetSource = Literal["preview", "final"]
+RenderMode = Literal["auto", "trimmed", "one-pass"]
 
 StoreTrue = Parameter(negative=())
 
@@ -228,6 +229,7 @@ def render(
     /,
     *,
     audio_preset: AudioPreset | None = None,
+    render_mode: RenderMode = "auto",
     output: Path | None = None,
     overwrite: Annotated[bool, StoreTrue] = False,
     dry_run: Annotated[bool, StoreTrue] = False,
@@ -236,6 +238,7 @@ def render(
         project,
         output=output,
         audio_preset=audio_preset,
+        render_mode=render_mode,
         overwrite=overwrite,
         dry_run=dry_run,
     )

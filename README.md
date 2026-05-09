@@ -29,7 +29,8 @@ trim workflow:
 
 ```bash
 uvx vided init tests/fixtures/media/realistic-speech-gaps.mp4 --output-dir realistic-speech-gaps-vad --symlink --overwrite
-uvx vided trim realistic-speech-gaps-vad --detector vad --final --overwrite
+uvx vided trim realistic-speech-gaps-vad --detector vad --overwrite
+uvx vided render realistic-speech-gaps-vad --overwrite
 ```
 
 The final clip is written to `realistic-speech-gaps-vad/output/final.mp4`.
@@ -81,12 +82,9 @@ Trim silence:
 uvx vided trim my-video --detector vad --overwrite
 ```
 
-If you only need automatic trimming and do not need blur redactions, write the
-trimmed result directly to `output/final.mp4` and stop:
-
-```bash
-uvx vided trim my-video --detector vad --final --overwrite
-```
+Use VAD for speech-heavy videos like narration, interviews, demos, and lectures.
+Use the default audio-level detector when non-speech audio matters, such as
+music, game audio, room sound, or sound effects.
 
 For redaction, open the local browser UI:
 
@@ -110,7 +108,8 @@ redaction as a translucent outlined blur region:
 uvx vided contact-sheet my-video --overwrite
 ```
 
-Render the final blurred video:
+Render the final blurred video. By default, Vided copies when no video work is
+needed; otherwise it renders from `work/trimmed.mp4`:
 
 ```bash
 uvx vided render my-video --overwrite
@@ -127,14 +126,18 @@ uvx vided contact-sheet my-video --source final --overwrite
 Trim with the default audio-level detector:
 
 ```bash
-uvx vided trim my-video --final --overwrite
+uvx vided trim my-video --overwrite
 ```
+
+This keeps any sufficiently loud audio activity, including non-speech sound.
 
 Trim with speech-aware VAD:
 
 ```bash
-uvx vided trim my-video --detector vad --final --overwrite
+uvx vided trim my-video --detector vad --overwrite
 ```
+
+This is best when the important content is mostly spoken words.
 
 Preview an audio preset on the longest detected speech/sound segment:
 
@@ -152,6 +155,22 @@ Render a contact sheet preview:
 
 ```bash
 uvx vided contact-sheet my-video --overwrite
+```
+
+## Advanced Flags
+
+One-pass rendering from the original video is available for benchmarking and
+experimentation:
+
+```bash
+uvx vided render my-video --render-mode one-pass --overwrite
+```
+
+If you only need automatic trimming and want `trim` to write `output/final.mp4`
+directly, use `--final`:
+
+```bash
+uvx vided trim my-video --detector vad --final --overwrite
 ```
 
 ## Audio Presets
@@ -217,8 +236,9 @@ The default trim mode is `hybrid`:
 - speech/sound stays at normal speed
 - default margin is 0.2 seconds
 
-The default detector uses ffmpeg-decoded audio levels. Use VAD for more
-speech-aware trimming:
+The default detector uses ffmpeg-decoded audio levels. It preserves sufficiently
+loud non-speech sounds like music, game audio, room sound, and sound effects.
+Use VAD when the video is mostly speech and you want speech-aware trimming:
 
 ```bash
 uvx vided trim my-video --detector vad --overwrite

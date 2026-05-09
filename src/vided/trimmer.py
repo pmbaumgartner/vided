@@ -616,10 +616,14 @@ def _atempo_filters(speed: float) -> list[str]:
     return [f"atempo={_format_number(factor)}" for factor in factors]
 
 
-def _build_ffmpeg_filtergraph(
+def build_trim_filtergraph(
     segments: list[TrimSegment],
     *,
     has_audio: bool,
+    video_input_label: str = "0:v",
+    audio_input_label: str = "0:a",
+    video_output_label: str = "vout",
+    audio_output_label: str = "aout",
     speed_indicator_input: int | None = None,
     speed_indicator_corner: str = "top-right",
     speed_indicator_inset: int = 20,
@@ -637,7 +641,7 @@ def _build_ffmpeg_filtergraph(
         )
         trim_label = f"v{idx}base" if needs_indicator else f"v{idx}"
         parts.append(
-            "[0:v]"
+            f"[{video_input_label}]"
             f"trim=start={_format_number(segment.start)}:end={_format_number(segment.end)},"
             f"setpts=(PTS-STARTPTS)/{speed}"
             f"[{trim_label}]"
@@ -659,14 +663,14 @@ def _build_ffmpeg_filtergraph(
             audio_filters.extend(_atempo_filters(segment.speed))
             if segment.mute_audio:
                 audio_filters.append("volume=0")
-            parts.append(f"[0:a]{','.join(audio_filters)}[a{idx}]")
+            parts.append(f"[{audio_input_label}]{','.join(audio_filters)}[a{idx}]")
             concat_inputs.append(f"[a{idx}]")
 
     concat = "".join(concat_inputs)
     if has_audio:
-        concat += f"concat=n={len(segments)}:v=1:a=1[vout][aout]"
+        concat += f"concat=n={len(segments)}:v=1:a=1[{video_output_label}][{audio_output_label}]"
     else:
-        concat += f"concat=n={len(segments)}:v=1:a=0[vout]"
+        concat += f"concat=n={len(segments)}:v=1:a=0[{video_output_label}]"
     parts.append(concat)
     return ";".join(parts)
 
@@ -796,7 +800,7 @@ def plan_trim(
 
 
 def build_trim_command(plan: TrimPlan) -> list[str]:
-    graph = _build_ffmpeg_filtergraph(
+    graph = build_trim_filtergraph(
         plan.segments,
         has_audio=plan.media_info.has_audio,
         speed_indicator_input=1 if plan.speed_indicator_path else None,

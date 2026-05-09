@@ -40,29 +40,24 @@ uvx vided install-skill --agent claude
 uvx vided init /path/to/input.mp4 --output-dir project-dir
 ```
 
-3. Trim silence. Use `--overwrite` when rerunning trim so stale `work/trimmed.mp4` is
-   replaced. Trimmed outputs contain only rendered video and audio streams, with source
-   subtitle streams, data streams, and chapters omitted.
+3. Trim silence. Use VAD for speech-heavy videos like narration, interviews, demos, and lectures.
+   Use the default audio-level detector when non-speech audio matters, such as music, game audio,
+   room sound, or sound effects. Use `--overwrite` when rerunning trim so stale
+   `work/trimmed.mp4` is replaced. Trimmed outputs contain only rendered video and audio streams,
+   with source subtitle streams, data streams, and chapters omitted.
 
 ```bash
-uvx vided trim project-dir --overwrite
+uvx vided trim project-dir --detector vad --overwrite
 ```
 
-4. If the user only needs automatic trimming and does not need blur redactions, write the trimmed
-   video directly as the final artifact and stop.
-
-```bash
-uvx vided trim project-dir --final --overwrite
-```
-
-5. Open the annotation UI to review frames and draw rectangular redaction regions. If thumbnails are
+4. Open the annotation UI to review frames and draw rectangular redaction regions. If thumbnails are
    missing, the UI command generates them from the trimmed video.
 
 ```bash
 uvx vided ui project-dir
 ```
 
-6. Render a contact sheet preview when reviewing redaction placement. Preview sheets sample the
+5. Render a contact sheet preview when reviewing redaction placement. Preview sheets sample the
    trimmed video and show translucent outlined blur regions, so they are faster than rendering a
    full final video.
 
@@ -70,13 +65,14 @@ uvx vided ui project-dir
 uvx vided contact-sheet project-dir --overwrite
 ```
 
-7. Render the final video after trimming and redactions are ready.
+6. Render the final video after trimming and redactions are ready. Vided copies when no video work
+   is needed; otherwise it renders from `work/trimmed.mp4`.
 
 ```bash
 uvx vided render project-dir --overwrite
 ```
 
-8. Optional: render a contact sheet from the final video.
+7. Optional: render a contact sheet from the final video.
 
 ```bash
 uvx vided contact-sheet project-dir --source final --overwrite
@@ -84,17 +80,17 @@ uvx vided contact-sheet project-dir --source final --overwrite
 
 ## Useful Variations
 
-Use VAD-based trimming when simple audio-level trimming is not good enough:
+Use the default audio-level detector when sufficiently loud non-speech sound should stay in the
+output:
+
+```bash
+uvx vided trim project-dir --overwrite
+```
+
+Use VAD-based trimming when the important content is mostly spoken words:
 
 ```bash
 uvx vided trim project-dir --detector vad --overwrite
-```
-
-When the user only needs automatic edits and does not need redactions or the UI, publish the trimmed
-video directly as the final artifact:
-
-```bash
-uvx vided trim project-dir --final --overwrite
 ```
 
 Tune UI frame generation when the user needs denser or wider thumbnails:
@@ -107,6 +103,18 @@ Render to a specific output path when the user asks for a named artifact:
 
 ```bash
 uvx vided render project-dir --output output/custom-final.mp4 --overwrite
+```
+
+Use one-pass rendering from the original video only for benchmarking or experimentation:
+
+```bash
+uvx vided render project-dir --render-mode one-pass --overwrite
+```
+
+When the user explicitly wants `trim` to write `output/final.mp4` directly, use `--final`:
+
+```bash
+uvx vided trim project-dir --detector vad --final --overwrite
 ```
 
 Render a final-video contact sheet from a custom final video:

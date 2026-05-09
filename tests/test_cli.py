@@ -259,10 +259,25 @@ def test_render_passes_audio_preset(monkeypatch) -> None:
     assert calls["project"] == Path("project-dir")
     assert calls["kwargs"] == {
         "audio_preset": "voice-safe",
+        "render_mode": "auto",
         "output": None,
         "overwrite": False,
         "dry_run": False,
     }
+
+
+def test_render_passes_render_mode(monkeypatch) -> None:
+    calls = {}
+
+    def fake_render_project(project: Path, **kwargs) -> Path:
+        calls["project"] = project
+        calls["kwargs"] = kwargs
+        return project / "output" / "final.mp4"
+
+    monkeypatch.setattr(cli, "render_project", fake_render_project)
+
+    assert cli.main(["render", "project-dir", "--render-mode", "trimmed"]) == 0
+    assert calls["kwargs"]["render_mode"] == "trimmed"
 
 
 def test_contact_sheet_defaults_to_preview_source(monkeypatch) -> None:

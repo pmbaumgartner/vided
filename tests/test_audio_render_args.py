@@ -23,16 +23,13 @@ def _project_with_trimmed_video(tmp_path: Path) -> Path:
     return project
 
 
-def test_render_audio_preset_none_keeps_audio_copy_behavior(tmp_path, monkeypatch) -> None:
+def test_render_audio_preset_none_uses_copy_fast_path(tmp_path, monkeypatch) -> None:
     project = _project_with_trimmed_video(tmp_path)
     calls = _capture_render_command(monkeypatch)
 
     render.render_project(project, audio_preset="none", dry_run=True)
 
-    cmd = calls["cmd"]
-    assert "-filter_complex" in cmd
-    assert "0:a?" in cmd
-    assert cmd[cmd.index("-c:a") + 1] == "copy"
+    assert calls == {}
 
 
 def test_render_audio_preset_filters_audio_and_copies_video_without_redactions(
