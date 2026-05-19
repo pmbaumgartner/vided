@@ -2,8 +2,16 @@
 
 from ._version import get_version as _get_version
 from .audio_presets import AudioPreset, list_audio_presets
-from .audio_preview import render_audio_preview, select_audio_preview_window
+from .audio_preview import AudioPreviewResult, render_audio_preview, select_audio_preview_window
+from .compression import (
+    CompressionCandidate,
+    CompressionDecision,
+    CompressionEstimate,
+    CompressionMode,
+    CompressionPriority,
+)
 from .contact_sheet import render_contact_sheet
+from .encoding import SampleEstimate
 from .errors import (
     ExternalToolError,
     ProjectError,
@@ -30,7 +38,7 @@ from .redactions import (
     save_redactions,
     validate_redaction_document,
 )
-from .render import copy_trimmed_to_final, render_project
+from .render import RenderResult, copy_trimmed_to_final, render_project
 from .skill_installer import SkillInstallResult, install_skill, load_packaged_skill
 from .trimmer import (
     OperationResult,
@@ -48,6 +56,12 @@ __version__ = _get_version()
 
 __all__ = [
     "AudioPreset",
+    "AudioPreviewResult",
+    "CompressionCandidate",
+    "CompressionDecision",
+    "CompressionEstimate",
+    "CompressionMode",
+    "CompressionPriority",
     "ExternalToolError",
     "OperationResult",
     "ProjectError",
@@ -55,6 +69,8 @@ __all__ = [
     "Rect",
     "Redaction",
     "RedactionDocument",
+    "RenderResult",
+    "SampleEstimate",
     "SkillInstallResult",
     "ToolError",
     "TrimOptions",

@@ -23,3 +23,4 @@ build/
 !tests/fixtures/media/*.mp4
 
 docs/
+.kata.local.toml

@@ -15,7 +15,7 @@ from helpers import (
     write_basic_project,
 )
 from vided import trimmer
-from vided.project import default_project_config
+from vided.project import default_project_config, read_json
 
 
 def test_default_project_config_uses_hybrid_trim_mode() -> None:
@@ -169,6 +169,53 @@ def test_ffmpeg_trim_command_outputs_only_filtered_media_streams(
     assert "-dn" in cmd
     assert cmd[cmd.index("-map_chapters") + 1] == "-1"
     assert "-shortest" in cmd
+
+
+def test_trim_smart_compression_caps_high_fps(basic_project: BasicProject, monkeypatch) -> None:
+    project = basic_project.root
+    patch_probe_media(monkeypatch, trimmer, fps=60.0, audio_bit_rate=128_000)
+    stub_trim_segments(monkeypatch, trimmer.TrimSegment(start=0.0, end=10.0))
+    monkeypatch.setattr(trimmer, "ensure_tool", lambda _: "ffmpeg")
+    monkeypatch.setattr(trimmer, "run_command", lambda *args, **kwargs: None)
+
+    plan = trimmer.plan_trim(project, compress="smart")
+    result = trimmer.run_trim_plan(plan, dry_run=True)
+
+    cmd = result.command
+    graph = filtergraph_from(cmd)
+    assert result.compression is not None
+    assert result.compression.candidate.name == "smart-h264-balanced"
+    assert "fps=fps=30[voutfps]" in graph
+    assert "[voutfps]" in cmd
+    assert cmd[cmd.index("-crf") + 1] == "23"
+    assert cmd[cmd.index("-b:a") + 1] == "96k"
+
+
+def test_trim_sample_uses_sample_output_and_skips_project_metadata(
+    basic_project: BasicProject, monkeypatch
+) -> None:
+    project = basic_project.root
+    patch_probe_media(monkeypatch, trimmer)
+    stub_trim_segments(monkeypatch, trimmer.TrimSegment(start=0.0, end=10.0))
+    monkeypatch.setattr(trimmer, "ensure_tool", lambda _: "ffmpeg")
+    monkeypatch.setattr(trimmer, "run_command", lambda *args, **kwargs: None)
+
+    plan = trimmer.plan_trim(project)
+    result = trimmer.run_trim_plan(
+        plan,
+        dry_run=True,
+        sample_duration=5.0,
+        sample_output=Path("output/sample.mp4"),
+    )
+
+    assert result.path == project / "output" / "sample.mp4"
+    assert result.sample is not None
+    assert result.sample.sample_duration == 5.0
+    assert result.sample.full_duration == 10.0
+    assert result.sample.sample_size_bytes is None
+    assert result.command[result.command.index("-t") + 1] == "5"
+    assert not (project / "work" / "trimmed.mp4").exists()
+    assert "trimmed_video" not in read_json(project / "project.json")
 
 
 def test_ffmpeg_trim_command_overlays_speed_indicator_on_sped_segments(

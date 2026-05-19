@@ -144,7 +144,7 @@ def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
     def fake_run_trim_plan(trim_plan, **kwargs):
         calls["plan"] = trim_plan
         calls["run_kwargs"] = kwargs
-        return SimpleNamespace(path=Path("project-dir/work/trimmed.mp4"))
+        return SimpleNamespace(path=Path("project-dir/work/trimmed.mp4"), sample=None)
 
     monkeypatch.setattr(cli, "plan_trim", fake_plan_trim)
     monkeypatch.setattr(cli, "run_trim_plan", fake_run_trim_plan)
@@ -190,9 +190,15 @@ def test_trim_passes_detector_and_vad_options(monkeypatch) -> None:
     assert options.speed_indicator_style == "light"
     assert options.speed_indicator_min_display_seconds == 1.25
     assert calls["kwargs"]["allow_vad_detection"] is True
+    assert calls["kwargs"]["compress"] == "off"
+    assert calls["kwargs"]["compression_priority"] == "compatibility"
+    assert calls["kwargs"]["max_fps"] is None
     assert calls["plan"] is plan
     assert calls["run_kwargs"]["overwrite"] is False
     assert calls["run_kwargs"]["dry_run"] is False
+    assert calls["run_kwargs"]["allow_larger"] is False
+    assert calls["run_kwargs"]["sample_duration"] is None
+    assert calls["run_kwargs"]["sample_output"] is None
 
 
 def test_trim_can_publish_final_video(monkeypatch, capsys) -> None:
@@ -207,7 +213,7 @@ def test_trim_can_publish_final_video(monkeypatch, capsys) -> None:
     def fake_run_trim_plan(trim_plan, **kwargs):
         calls["plan"] = trim_plan
         calls["run_kwargs"] = kwargs
-        return SimpleNamespace(path=Path("project-dir/work/trimmed.mp4"))
+        return SimpleNamespace(path=Path("project-dir/work/trimmed.mp4"), sample=None)
 
     def fake_copy_trimmed_to_final(project: Path, **kwargs) -> Path:
         calls["final_project"] = project
@@ -234,7 +240,13 @@ def test_trim_can_publish_final_video(monkeypatch, capsys) -> None:
     assert calls["project"] == Path("project-dir")
     assert calls["kwargs"]["allow_vad_detection"] is False
     assert calls["plan"] is plan
-    assert calls["run_kwargs"] == {"overwrite": True, "dry_run": True}
+    assert calls["run_kwargs"] == {
+        "overwrite": True,
+        "dry_run": True,
+        "allow_larger": False,
+        "sample_duration": None,
+        "sample_output": None,
+    }
     assert calls["final_project"] == Path("project-dir")
     assert calls["final_kwargs"] == {
         "source": Path("project-dir/work/trimmed.mp4"),
@@ -245,13 +257,59 @@ def test_trim_can_publish_final_video(monkeypatch, capsys) -> None:
     assert "Final video: project-dir/output/auto-edited.mp4" in capsys.readouterr().out
 
 
+def test_trim_passes_sample_options(monkeypatch, capsys) -> None:
+    calls = {}
+    plan = object()
+    sample = SimpleNamespace(
+        sample_size_bytes=1024,
+        estimated_full_size_bytes=4096,
+    )
+
+    def fake_plan_trim(project: Path, **kwargs):
+        calls["project"] = project
+        calls["kwargs"] = kwargs
+        return plan
+
+    def fake_run_trim_plan(trim_plan, **kwargs):
+        calls["plan"] = trim_plan
+        calls["run_kwargs"] = kwargs
+        return SimpleNamespace(path=Path("project-dir/output/trim-sample.mp4"), sample=sample)
+
+    monkeypatch.setattr(cli, "plan_trim", fake_plan_trim)
+    monkeypatch.setattr(cli, "run_trim_plan", fake_run_trim_plan)
+
+    assert (
+        cli.main(
+            [
+                "trim",
+                "project-dir",
+                "--sample-duration",
+                "20",
+                "--sample-output",
+                "output/trim-test.mp4",
+                "--allow-larger",
+                "--overwrite",
+            ]
+        )
+        == 0
+    )
+    assert calls["run_kwargs"] == {
+        "overwrite": True,
+        "dry_run": False,
+        "allow_larger": True,
+        "sample_duration": 20.0,
+        "sample_output": Path("output/trim-test.mp4"),
+    }
+    assert "Trim sample: project-dir/output/trim-sample.mp4" in capsys.readouterr().out
+
+
 def test_render_passes_audio_preset(monkeypatch) -> None:
     calls = {}
 
-    def fake_render_project(project: Path, **kwargs) -> Path:
+    def fake_render_project(project: Path, **kwargs):
         calls["project"] = project
         calls["kwargs"] = kwargs
-        return project / "output" / "final.mp4"
+        return SimpleNamespace(path=project / "output" / "final.mp4", sample=None)
 
     monkeypatch.setattr(cli, "render_project", fake_render_project)
 
@@ -259,25 +317,125 @@ def test_render_passes_audio_preset(monkeypatch) -> None:
     assert calls["project"] == Path("project-dir")
     assert calls["kwargs"] == {
         "audio_preset": "voice-safe",
-        "render_mode": "auto",
+        "render_source": "auto",
+        "compress": "off",
+        "compression_priority": "compatibility",
+        "max_fps": None,
+        "sample_duration": None,
+        "sample_output": None,
+        "allow_larger": False,
         "output": None,
         "overwrite": False,
         "dry_run": False,
     }
 
 
-def test_render_passes_render_mode(monkeypatch) -> None:
+def test_render_passes_render_source(monkeypatch) -> None:
     calls = {}
 
-    def fake_render_project(project: Path, **kwargs) -> Path:
+    def fake_render_project(project: Path, **kwargs):
         calls["project"] = project
         calls["kwargs"] = kwargs
-        return project / "output" / "final.mp4"
+        return SimpleNamespace(path=project / "output" / "final.mp4", sample=None)
 
     monkeypatch.setattr(cli, "render_project", fake_render_project)
 
-    assert cli.main(["render", "project-dir", "--render-mode", "trimmed"]) == 0
-    assert calls["kwargs"]["render_mode"] == "trimmed"
+    assert (
+        cli.main(
+            [
+                "render",
+                "project-dir",
+                "--render-source",
+                "original",
+            ]
+        )
+        == 0
+    )
+    assert calls["kwargs"]["render_source"] == "original"
+    assert calls["kwargs"]["compress"] == "off"
+    assert calls["kwargs"]["allow_larger"] is False
+
+
+def test_render_passes_smart_compression_options(monkeypatch) -> None:
+    calls = {}
+
+    def fake_render_project(project: Path, **kwargs):
+        calls["project"] = project
+        calls["kwargs"] = kwargs
+        return SimpleNamespace(path=project / "output" / "final.mp4", sample=None)
+
+    monkeypatch.setattr(cli, "render_project", fake_render_project)
+
+    assert (
+        cli.main(
+            [
+                "render",
+                "project-dir",
+                "--compress",
+                "smart",
+                "--compression-priority",
+                "size",
+                "--max-fps",
+                "24",
+            ]
+        )
+        == 0
+    )
+    assert calls["kwargs"]["compress"] == "smart"
+    assert calls["kwargs"]["compression_priority"] == "size"
+    assert calls["kwargs"]["max_fps"] == 24.0
+
+
+def test_trim_passes_smart_compression_options(monkeypatch) -> None:
+    calls = {}
+
+    def fake_plan_trim(project: Path, **kwargs):
+        calls["project"] = project
+        calls["kwargs"] = kwargs
+        return object()
+
+    def fake_run_trim_plan(trim_plan, **kwargs):
+        return SimpleNamespace(path=Path("project-dir/work/trimmed.mp4"), sample=None)
+
+    monkeypatch.setattr(cli, "plan_trim", fake_plan_trim)
+    monkeypatch.setattr(cli, "run_trim_plan", fake_run_trim_plan)
+
+    assert (
+        cli.main(
+            [
+                "trim",
+                "project-dir",
+                "--compress",
+                "smart",
+                "--compression-priority",
+                "size",
+                "--max-fps",
+                "24",
+            ]
+        )
+        == 0
+    )
+    assert calls["kwargs"]["compress"] == "smart"
+    assert calls["kwargs"]["compression_priority"] == "size"
+    assert calls["kwargs"]["max_fps"] == 24.0
+
+
+def test_render_sample_prints_sample_estimate(monkeypatch, capsys) -> None:
+    sample = SimpleNamespace(
+        sample_size_bytes=2048,
+        estimated_full_size_bytes=8192,
+    )
+
+    def fake_render_project(project: Path, **kwargs):
+        return SimpleNamespace(path=project / "output" / "final-sample.mp4", sample=sample)
+
+    monkeypatch.setattr(cli, "render_project", fake_render_project)
+
+    assert cli.main(["render", "project-dir", "--sample-duration", "15"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Render sample: project-dir/output/final-sample.mp4" in output
+    assert "estimated full size" in output
 
 
 def test_contact_sheet_defaults_to_preview_source(monkeypatch) -> None:
@@ -348,10 +506,10 @@ def test_audio_presets_lists_available_presets(capsys) -> None:
 def test_audio_preview_passes_options(monkeypatch, capsys) -> None:
     calls = {}
 
-    def fake_render_audio_preview(project: Path, **kwargs) -> Path:
+    def fake_render_audio_preview(project: Path, **kwargs) -> SimpleNamespace:
         calls["project"] = project
         calls["kwargs"] = kwargs
-        return project / "output" / "preview.mp4"
+        return SimpleNamespace(path=project / "output" / "preview.mp4")
 
     monkeypatch.setattr(cli, "render_audio_preview", fake_render_audio_preview)
 

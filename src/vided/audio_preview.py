@@ -7,7 +7,17 @@ from typing import Any
 
 from .audio_presets import audio_filter_for_preset, normalize_audio_preset
 from .errors import ProjectError, ValidationError
-from .ffmpeg import VideoInfo, ensure_tool, probe_media, run_command
+from .ffmpeg import (
+    VideoInfo,
+    audio_encode_args,
+    ffmpeg_base_args,
+    ffmpeg_input_args,
+    ffmpeg_output_args,
+    ffmpeg_seconds,
+    ensure_tool,
+    probe_media,
+    run_command,
+)
 from .project import load_project, project_paths
 from .trimmer import build_trim_timeline, plan_trim
 
@@ -36,6 +46,14 @@ class AudioPreviewWindow:
     fallback: bool = False
 
 
+@dataclass(frozen=True)
+class AudioPreviewResult:
+    path: Path
+    command: list[str]
+    dry_run: bool
+    wrote_files: bool
+
+
 def render_audio_preview(
     project_root: Path,
     *,
@@ -45,7 +63,7 @@ def render_audio_preview(
     output: Path | None = None,
     overwrite: bool = False,
     dry_run: bool = False,
-) -> Path:
+) -> AudioPreviewResult:
     ensure_tool("ffmpeg")
     cfg = load_project(project_root)
     p = project_paths(project_root, config=cfg)
@@ -72,15 +90,12 @@ def render_audio_preview(
         output.parent.mkdir(parents=True, exist_ok=True)
 
     cmd = [
-        "ffmpeg",
-        "-hide_banner",
-        "-y" if overwrite else "-n",
+        *ffmpeg_base_args(overwrite=overwrite),
         "-ss",
-        _format_seconds(window.start),
-        "-i",
-        str(trimmed),
+        ffmpeg_seconds(window.start),
+        *ffmpeg_input_args(trimmed),
         "-t",
-        _format_seconds(window.duration),
+        ffmpeg_seconds(window.duration),
         "-map",
         "0:v:0",
         "-c:v",
@@ -98,10 +113,7 @@ def render_audio_preview(
                 "0:a:0",
                 "-af",
                 audio_filter,
-                "-c:a",
-                "aac",
-                "-b:a",
-                str(render_cfg.get("audio_bitrate", "192k")),
+                *audio_encode_args(render_cfg),
             ]
         )
     else:
@@ -109,9 +121,14 @@ def render_audio_preview(
             "warning: audio preset requested but trimmed video has no audio stream", file=sys.stderr
         )
 
-    cmd.extend(["-sn", "-dn", "-map_chapters", "-1", "-movflags", "+faststart", str(output)])
+    cmd.extend(ffmpeg_output_args(output, drop_non_media=True))
     run_command(cmd, dry_run=dry_run)
-    return output
+    return AudioPreviewResult(
+        path=output,
+        command=cmd,
+        dry_run=dry_run,
+        wrote_files=not dry_run,
+    )
 
 
 def select_audio_preview_window(
@@ -234,7 +251,7 @@ def _cap_duration(duration: float, start: float, media_duration: float) -> float
 
 
 def _format_seconds(value: float) -> str:
-    return f"{value:.6f}".rstrip("0").rstrip(".") or "0"
+    return ffmpeg_seconds(value)
 
 
 def _seconds_label(value: float) -> str:

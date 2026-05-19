@@ -106,7 +106,7 @@ def test_full_fixture_generates_contact_sheets_with_multiple_redactions(
         ]
 
     preview_sheet = render_contact_sheet(project, overwrite=True)
-    final_video = render_project(project, overwrite=True)
+    final_video = render_project(project, overwrite=True).path
     final_sheet = render_contact_sheet(project, source="final", overwrite=True)
     final_info = probe_media(final_video)
     filtergraph = (project / "work" / "filtergraph.txt").read_text(encoding="utf-8")

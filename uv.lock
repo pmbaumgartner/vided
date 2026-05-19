@@ -736,7 +736,7 @@ wheels = [
 
 [[package]]
 name = "vided"
-version = "0.1.16"
+version = "0.1.19"
 source = { editable = "." }
 dependencies = [
     { name = "cyclopts" },

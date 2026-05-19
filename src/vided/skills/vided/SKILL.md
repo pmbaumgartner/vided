@@ -66,10 +66,12 @@ uvx vided contact-sheet project-dir --overwrite
 ```
 
 6. Render the final video after trimming and redactions are ready. Vided copies when no video work
-   is needed; otherwise it renders from `work/trimmed.mp4`.
+   is needed; otherwise it renders from `work/trimmed.mp4`. When the user wants a smaller screen
+   recording, use smart compression as the final-render variant.
 
 ```bash
 uvx vided render project-dir --overwrite
+uvx vided render project-dir --compress smart --overwrite
 ```
 
 7. Optional: render a contact sheet from the final video.
@@ -105,10 +107,11 @@ Render to a specific output path when the user asks for a named artifact:
 uvx vided render project-dir --output output/custom-final.mp4 --overwrite
 ```
 
-Use one-pass rendering from the original video only for benchmarking or experimentation:
+Render from the original input and trim timeline when the trimmed review file was encoded small
+but the final output should be based on the original source:
 
 ```bash
-uvx vided render project-dir --render-mode one-pass --overwrite
+uvx vided render project-dir --render-source original --compress smart --overwrite
 ```
 
 When the user explicitly wants `trim` to write `output/final.mp4` directly, use `--final`:
@@ -116,6 +119,21 @@ When the user explicitly wants `trim` to write `output/final.mp4` directly, use 
 ```bash
 uvx vided trim project-dir --detector vad --final --overwrite
 ```
+
+Prefer smart compression when a user wants smaller screen recordings without downscaling UI text:
+
+```bash
+uvx vided render project-dir --compress smart --overwrite
+uvx vided trim project-dir --compress smart --overwrite
+uvx vided render project-dir --compress smart --compression-priority size --overwrite
+```
+
+Smart compression keeps native resolution, caps high-FPS recordings to 30fps by default,
+uses H.264 unless `--compression-priority size` is selected, and avoids increasing audio
+bitrate. It samples candidate encodes automatically before committing to the full render. Use
+`--max-fps 24` for smaller review artifacts when motion smoothness matters less. Compressed
+outputs fail by default if the encoded file would be larger than its source; use `--allow-larger`
+only when a larger quality-focused output is intentional.
 
 Render a final-video contact sheet from a custom final video:
 

@@ -90,7 +90,7 @@ def test_short_fixture_browser_workflow_renders_final_output(
     assert rect["w"] > 0
     assert rect["h"] > 0
 
-    final_output = render_project(project, overwrite=True)
+    final_output = render_project(project, overwrite=True).path
     final_info = probe_media(final_output)
     filtergraph = (project / "work" / "filtergraph.txt").read_text(encoding="utf-8")
 

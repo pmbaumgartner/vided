@@ -3,14 +3,43 @@ from __future__ import annotations
 import array
 import math
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 from PIL import ImageFont
 
+from .compression import (
+    CompressionDecision,
+    CompressionMode,
+    CompressionPriority,
+    append_output_video_filter,
+    choose_smart_compression,
+    normalize_compression_mode,
+    normalize_compression_priority,
+    render_config_with_compression,
+)
+from .encoding import (
+    SampleEstimate,
+    build_sample_estimate,
+    ensure_output_not_larger,
+    output_duration_from_segments,
+    sample_duration_seconds,
+    sample_output_path,
+    video_encode_args,
+)
 from .errors import ValidationError
-from .ffmpeg import VideoInfo, ensure_tool, probe_media, run_command
+from .ffmpeg import (
+    VideoInfo,
+    audio_encode_args,
+    drop_non_media_args,
+    ffmpeg_base_args,
+    ffmpeg_input_args,
+    ffmpeg_output_args,
+    ensure_tool,
+    probe_media,
+    run_command,
+)
 from .image_badge import DARK_BADGE_STYLE, LIGHT_BADGE_STYLE, render_text_badge
 from .project import (
     default_redactions,
@@ -81,6 +110,9 @@ class TrimPlan:
     media_info: VideoInfo
     segments: list[TrimSegment]
     render_config: dict[str, Any]
+    compress: CompressionMode
+    compression_priority: CompressionPriority
+    max_fps: float | None
     speed_indicator: SpeedIndicatorSettings
     speed_indicator_path: Path | None = None
 
@@ -91,6 +123,8 @@ class OperationResult:
     command: list[str]
     dry_run: bool
     wrote_files: bool
+    sample: SampleEstimate | None = None
+    compression: CompressionDecision | None = None
 
 
 def build_trim_timeline(segments: list[TrimSegment]) -> dict[str, Any]:
@@ -680,8 +714,13 @@ def plan_trim(
     *,
     options: TrimOptions | None = None,
     allow_vad_detection: bool = False,
+    compress: CompressionMode = "off",
+    compression_priority: CompressionPriority = "compatibility",
+    max_fps: float | None = None,
 ) -> TrimPlan:
     options = options or TrimOptions()
+    compress = normalize_compression_mode(compress)
+    compression_priority = normalize_compression_priority(compression_priority)
     cfg = load_project(project_root)
     p = project_paths(project_root, config=cfg)
 
@@ -794,12 +833,22 @@ def plan_trim(
         media_info=media_info,
         segments=segments,
         render_config=render_cfg,
+        compress=compress,
+        compression_priority=compression_priority,
+        max_fps=max_fps,
         speed_indicator=speed_indicator_settings,
         speed_indicator_path=indicator_path,
     )
 
 
-def build_trim_command(plan: TrimPlan) -> list[str]:
+def build_trim_command(
+    plan: TrimPlan,
+    *,
+    output: Path | None = None,
+    sample_duration: float | None = None,
+) -> list[str]:
+    output = output or plan.output
+    sample_duration = sample_duration_seconds(sample_duration)
     graph = build_trim_filtergraph(
         plan.segments,
         has_audio=plan.media_info.has_audio,
@@ -811,44 +860,34 @@ def build_trim_command(plan: TrimPlan) -> list[str]:
         ),
         speed_indicator_min_display_seconds=plan.speed_indicator.min_display_seconds,
     )
+    video_label = "vout"
+    graph, video_label = append_output_video_filter(
+        graph,
+        plan.render_config,
+        input_label=video_label,
+    )
 
-    cmd = [
-        "ffmpeg",
-        "-hide_banner",
-        "-y",
-        "-i",
-        str(plan.original),
-    ]
+    cmd = [*ffmpeg_base_args(overwrite=True), *ffmpeg_input_args(plan.original)]
     if plan.speed_indicator_path is not None:
-        cmd.extend(["-loop", "1", "-i", str(plan.speed_indicator_path)])
+        cmd.extend(["-loop", "1", *ffmpeg_input_args(plan.speed_indicator_path)])
     cmd.extend(
         [
             "-filter_complex",
             graph,
             "-map",
-            "[vout]",
+            f"[{video_label}]",
         ]
     )
     if plan.media_info.has_audio:
         cmd.extend(["-map", "[aout]"])
-    cmd.extend(["-sn", "-dn", "-map_chapters", "-1", "-shortest"])
+    cmd.extend(drop_non_media_args())
+    cmd.append("-shortest")
 
     render_cfg = plan.render_config
-    cmd.extend(
-        [
-            "-c:v",
-            str(render_cfg.get("video_codec", "libx264")),
-            "-crf",
-            str(render_cfg.get("crf", 16)),
-            "-preset",
-            str(render_cfg.get("preset", "medium")),
-            "-pix_fmt",
-            str(render_cfg.get("pixel_format", "yuv420p")),
-        ]
-    )
+    cmd.extend(video_encode_args(render_cfg))
     if plan.media_info.has_audio:
-        cmd.extend(["-c:a", "aac", "-b:a", str(render_cfg.get("audio_bitrate", "192k"))])
-    cmd.extend(["-movflags", "+faststart", str(plan.output)])
+        cmd.extend(audio_encode_args(render_cfg))
+    cmd.extend(ffmpeg_output_args(output, sample_duration=sample_duration))
     return cmd
 
 
@@ -894,23 +933,88 @@ def run_trim_plan(
     *,
     overwrite: bool = False,
     dry_run: bool = False,
+    allow_larger: bool = False,
+    sample_duration: float | None = None,
+    sample_output: Path | None = None,
 ) -> OperationResult:
-    if plan.output.exists() and not overwrite and not dry_run:
+    sample_duration = sample_duration_seconds(sample_duration)
+    is_sample = sample_duration is not None
+    output = plan.output
+    if is_sample:
+        p = project_paths(plan.project_root, config=plan.config)
+        output = sample_output_path(
+            requested=sample_output,
+            default_dir=p.output_dir,
+            label="trim",
+            suffix="smart" if plan.compress == "smart" else "current",
+        )
+        if not output.is_absolute():
+            output = p.root / output
+        if output.resolve() == plan.output.resolve():
+            raise ValidationError("trim sample output cannot be the project trimmed video path")
+
+    if output.exists() and not overwrite and not dry_run:
         raise FileExistsError(
-            f"Trimmed file already exists: {plan.output}. Use --overwrite to replace it."
+            f"Trimmed file already exists: {output}. Use --overwrite to replace it."
         )
 
     ensure_tool("ffmpeg")
-    cmd = build_trim_command(plan)
+    compression_decision: CompressionDecision | None = None
+    if plan.compress == "smart":
+        compression_decision = choose_smart_compression(
+            plan.original,
+            plan.media_info,
+            plan.render_config,
+            priority=plan.compression_priority,
+            max_fps=plan.max_fps,
+            full_duration=output_duration_from_segments(plan.segments),
+            sample_dir=project_paths(plan.project_root, config=plan.config).work_dir
+            / "compression-samples",
+            sample_label=output.stem,
+            dry_run=dry_run,
+            runner=lambda cmd: run_command(cmd, dry_run=False),
+        )
+        plan = replace(
+            plan,
+            render_config=render_config_with_compression(
+                plan.render_config,
+                compression_decision,
+            ),
+        )
+    cmd = build_trim_command(plan, output=output, sample_duration=sample_duration)
 
     if not dry_run:
-        plan.output.parent.mkdir(parents=True, exist_ok=True)
-        if overwrite and plan.output.exists():
-            plan.output.unlink()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if overwrite and output.exists():
+            output.unlink()
         _write_trim_assets(plan)
 
     run_command(cmd, dry_run=dry_run)
 
-    if not dry_run:
+    if compression_decision is not None and not is_sample:
+        ensure_output_not_larger(
+            output,
+            plan.original,
+            allow_larger=allow_larger,
+            dry_run=dry_run,
+        )
+
+    if not dry_run and not is_sample:
         _write_trim_metadata(plan)
-    return OperationResult(path=plan.output, command=cmd, dry_run=dry_run, wrote_files=not dry_run)
+
+    sample = None
+    if is_sample:
+        sample = build_sample_estimate(
+            output,
+            sample_duration=sample_duration,
+            full_duration=output_duration_from_segments(plan.segments),
+            dry_run=dry_run,
+        )
+    return OperationResult(
+        path=output,
+        command=cmd,
+        dry_run=dry_run,
+        wrote_files=not dry_run,
+        sample=sample,
+        compression=compression_decision,
+    )

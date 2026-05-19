@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, overload
@@ -26,6 +27,10 @@ class VideoInfo:
     has_audio: bool
     audio_sample_rate: int | None = None
     audio_channels: int | None = None
+    file_size_bytes: int | None = None
+    format_bit_rate: int | None = None
+    video_bit_rate: int | None = None
+    audio_bit_rate: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -39,6 +44,10 @@ class VideoInfo:
             "has_audio": self.has_audio,
             "audio_sample_rate": self.audio_sample_rate,
             "audio_channels": self.audio_channels,
+            "file_size_bytes": self.file_size_bytes,
+            "format_bit_rate": self.format_bit_rate,
+            "video_bit_rate": self.video_bit_rate,
+            "audio_bit_rate": self.audio_bit_rate,
         }
 
 
@@ -47,6 +56,70 @@ def ensure_tool(name: str) -> str:
     if resolved is None:
         raise ToolError(f"Required tool '{name}' was not found on PATH. Install it and try again.")
     return resolved
+
+
+def ffmpeg_base_args(*, overwrite: bool) -> list[str]:
+    return ["ffmpeg", "-hide_banner", "-y" if overwrite else "-n"]
+
+
+def ffmpeg_input_args(path: Path) -> list[str]:
+    return ["-i", str(path)]
+
+
+def sample_duration_args(duration: float | int | None) -> list[str]:
+    if duration is None:
+        return []
+    return ["-t", ffmpeg_seconds(duration)]
+
+
+def drop_non_media_args() -> list[str]:
+    return ["-sn", "-dn", "-map_chapters", "-1"]
+
+
+def faststart_args() -> list[str]:
+    return ["-movflags", "+faststart"]
+
+
+def ffmpeg_output_args(
+    output: Path,
+    *,
+    sample_duration: float | int | None = None,
+    drop_non_media: bool = False,
+    shortest: bool = False,
+    faststart: bool = True,
+) -> list[str]:
+    args = sample_duration_args(sample_duration)
+    if drop_non_media:
+        args.extend(drop_non_media_args())
+    if shortest:
+        args.append("-shortest")
+    if faststart:
+        args.extend(faststart_args())
+    args.append(str(output))
+    return args
+
+
+def audio_encode_args(
+    render_config: Mapping[str, Any],
+    *,
+    codec: str = "aac",
+) -> list[str]:
+    if codec == "copy":
+        return ["-c:a", "copy"]
+    if codec == "aac":
+        return ["-c:a", "aac", "-b:a", str(render_config.get("audio_bitrate", "192k"))]
+    return ["-c:a", codec]
+
+
+def audio_config_args(
+    render_config: Mapping[str, Any],
+    *,
+    default_codec: str = "copy",
+) -> list[str]:
+    return audio_encode_args(
+        render_config,
+        codec=str(render_config.get("audio_codec", default_codec)),
+    )
 
 
 @overload
@@ -139,6 +212,21 @@ def _parse_fraction(value: str | None) -> float | None:
         return None
 
 
+def _parse_int(value: object) -> int | None:
+    if value is None:
+        return None
+    try:
+        if isinstance(value, int):
+            parsed = value
+        elif isinstance(value, str):
+            parsed = int(value)
+        else:
+            return None
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
 def probe_media(path: Path) -> VideoInfo:
     """Return the basic media info this project needs."""
 
@@ -189,6 +277,10 @@ def probe_media(path: Path) -> VideoInfo:
         has_audio=audio is not None,
         audio_sample_rate=int(audio["sample_rate"]) if audio and audio.get("sample_rate") else None,
         audio_channels=int(audio["channels"]) if audio and audio.get("channels") else None,
+        file_size_bytes=_parse_int(fmt.get("size")),
+        format_bit_rate=_parse_int(fmt.get("bit_rate")),
+        video_bit_rate=_parse_int(video.get("bit_rate")),
+        audio_bit_rate=_parse_int(audio.get("bit_rate")) if audio else None,
     )
 
 
@@ -198,3 +290,11 @@ def seconds(value: float | int | str) -> str:
     if isinstance(value, str):
         return value
     return f"{float(value):.6f}s"
+
+
+def ffmpeg_seconds(value: float | int | str) -> str:
+    """Format seconds for plain ffmpeg numeric duration arguments."""
+
+    if isinstance(value, str):
+        return value
+    return f"{float(value):.6f}".rstrip("0").rstrip(".") or "0"

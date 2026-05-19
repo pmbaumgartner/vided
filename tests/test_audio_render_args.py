@@ -5,6 +5,14 @@ from typing import Any
 
 from helpers import basic_project_at, filtergraph_from, patch_probe_media
 from vided.audio_presets import audio_filter_for_preset
+from vided.ffmpeg import (
+    audio_config_args,
+    audio_encode_args,
+    drop_non_media_args,
+    faststart_args,
+    ffmpeg_output_args,
+    sample_duration_args,
+)
 from vided.project import write_json
 import vided.render as render
 
@@ -27,8 +35,9 @@ def test_render_audio_preset_none_uses_copy_fast_path(tmp_path, monkeypatch) -> 
     project = _project_with_trimmed_video(tmp_path)
     calls = _capture_render_command(monkeypatch)
 
-    render.render_project(project, audio_preset="none", dry_run=True)
+    result = render.render_project(project, audio_preset="none", dry_run=True)
 
+    assert result.command is None
     assert calls == {}
 
 
@@ -38,9 +47,11 @@ def test_render_audio_preset_filters_audio_and_copies_video_without_redactions(
     project = _project_with_trimmed_video(tmp_path)
     calls = _capture_render_command(monkeypatch)
 
-    render.render_project(project, audio_preset="level", dry_run=True)
+    result = render.render_project(project, audio_preset="level", dry_run=True)
 
-    cmd = calls["cmd"]
+    cmd = result.command
+    assert cmd == calls["cmd"]
+    assert cmd is not None
     assert "-filter_complex" not in cmd
     assert cmd[cmd.index("-map") + 1] == "0:v:0"
     assert cmd[cmd.index("-c:v") + 1] == "copy"
@@ -68,9 +79,11 @@ def test_render_audio_preset_combines_audio_and_redaction_filtergraphs(
     )
     calls = _capture_render_command(monkeypatch)
 
-    render.render_project(project, audio_preset="voice-safe", dry_run=True)
+    result = render.render_project(project, audio_preset="voice-safe", dry_run=True)
 
-    cmd = calls["cmd"]
+    cmd = result.command
+    assert cmd == calls["cmd"]
+    assert cmd is not None
     graph = filtergraph_from(cmd)
     assert "drawbox" in graph
     assert f"[0:a]{audio_filter_for_preset('voice-safe')}[aout]" in graph
@@ -84,8 +97,48 @@ def test_render_audio_preset_warns_and_renders_video_only_without_audio(
     project = _project_with_trimmed_video(tmp_path)
     calls = _capture_render_command(monkeypatch, has_audio=False)
 
-    render.render_project(project, audio_preset="level", dry_run=True)
+    result = render.render_project(project, audio_preset="level", dry_run=True)
 
-    cmd = calls["cmd"]
+    cmd = result.command
+    assert cmd == calls["cmd"]
+    assert cmd is not None
     assert "-c:a" not in cmd
     assert "audio preset requested but trimmed video has no audio stream" in capsys.readouterr().err
+
+
+def test_ffmpeg_audio_arg_helpers_use_copy_or_aac_bitrate() -> None:
+    render_cfg = {"audio_bitrate": "96k", "audio_codec": "aac"}
+
+    assert audio_config_args(render_cfg, default_codec="copy") == [
+        "-c:a",
+        "aac",
+        "-b:a",
+        "96k",
+    ]
+    assert audio_config_args({}, default_codec="copy") == ["-c:a", "copy"]
+    assert audio_encode_args(render_cfg) == ["-c:a", "aac", "-b:a", "96k"]
+
+
+def test_ffmpeg_output_arg_helpers_share_common_flags() -> None:
+    output = Path("output/final.mp4")
+
+    assert drop_non_media_args() == ["-sn", "-dn", "-map_chapters", "-1"]
+    assert faststart_args() == ["-movflags", "+faststart"]
+    assert sample_duration_args(12.5) == ["-t", "12.5"]
+    assert ffmpeg_output_args(
+        output,
+        sample_duration=12.5,
+        drop_non_media=True,
+        shortest=True,
+    ) == [
+        "-t",
+        "12.5",
+        "-sn",
+        "-dn",
+        "-map_chapters",
+        "-1",
+        "-shortest",
+        "-movflags",
+        "+faststart",
+        "output/final.mp4",
+    ]

@@ -51,15 +51,18 @@ def test_audio_preview_defaults_to_longest_normal_unmuted_segment_start(
     )
     calls = _capture_audio_preview_command(monkeypatch)
 
-    output = audio_preview.render_audio_preview(
+    result = audio_preview.render_audio_preview(
         project,
         audio_preset="voice-safe",
         overwrite=True,
         dry_run=True,
     )
 
-    cmd = calls["cmd"]
-    assert output == project / "output" / "audio-preview-voice-safe-6s.mp4"
+    cmd = result.command
+    assert cmd == calls["cmd"]
+    assert result.path == project / "output" / "audio-preview-voice-safe-6s.mp4"
+    assert result.dry_run is True
+    assert result.wrote_files is False
     assert cmd[cmd.index("-ss") + 1] == "6"
     assert cmd[cmd.index("-t") + 1] == "15"
     assert cmd[cmd.index("-af") + 1] == audio_preview.audio_filter_for_preset("voice-safe")
@@ -70,14 +73,15 @@ def test_audio_preview_caps_auto_duration_to_selected_segment(tmp_path, monkeypa
     _write_trim_timeline(project, [TrimSegment(start=0.0, end=6.0)])
     calls = _capture_audio_preview_command(monkeypatch)
 
-    audio_preview.render_audio_preview(
+    result = audio_preview.render_audio_preview(
         project,
         audio_preset="level",
         duration=20.0,
         dry_run=True,
     )
 
-    cmd = calls["cmd"]
+    cmd = result.command
+    assert cmd == calls["cmd"]
     assert cmd[cmd.index("-ss") + 1] == "0"
     assert cmd[cmd.index("-t") + 1] == "6"
 
@@ -86,14 +90,15 @@ def test_audio_preview_manual_start_defaults_to_fifteen_seconds(tmp_path, monkey
     project = _project_with_trimmed_video(tmp_path, monkeypatch, duration=30.0)
     calls = _capture_audio_preview_command(monkeypatch)
 
-    audio_preview.render_audio_preview(
+    result = audio_preview.render_audio_preview(
         project,
         audio_preset="level",
         start=2.5,
         dry_run=True,
     )
 
-    cmd = calls["cmd"]
+    cmd = result.command
+    assert cmd == calls["cmd"]
     assert cmd[cmd.index("-ss") + 1] == "2.5"
     assert cmd[cmd.index("-t") + 1] == "15"
 
@@ -105,9 +110,10 @@ def test_audio_preview_falls_back_when_no_normal_unmuted_segment(
     _write_trim_timeline(project, [TrimSegment(start=0.0, end=8.0, speed=8.0, mute_audio=True)])
     calls = _capture_audio_preview_command(monkeypatch)
 
-    audio_preview.render_audio_preview(project, audio_preset="level", dry_run=True)
+    result = audio_preview.render_audio_preview(project, audio_preset="level", dry_run=True)
 
-    cmd = calls["cmd"]
+    cmd = result.command
+    assert cmd == calls["cmd"]
     assert cmd[cmd.index("-ss") + 1] == "0"
     assert cmd[cmd.index("-t") + 1] == "15"
     assert "no normal-speed audio segment found" in capsys.readouterr().err
@@ -126,9 +132,10 @@ def test_audio_preview_reconstructs_missing_timeline_from_trim_plan(tmp_path, mo
         )(),
     )
 
-    audio_preview.render_audio_preview(project, audio_preset="level", dry_run=True)
+    result = audio_preview.render_audio_preview(project, audio_preset="level", dry_run=True)
 
-    cmd = calls["cmd"]
+    cmd = result.command
+    assert cmd == calls["cmd"]
     assert cmd[cmd.index("-ss") + 1] == "3"
     assert cmd[cmd.index("-t") + 1] == "8"
 

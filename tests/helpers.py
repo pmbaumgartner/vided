@@ -36,6 +36,10 @@ def video_info(
     audio_codec: str | None = None,
     audio_sample_rate: int | None = 48000,
     audio_channels: int | None = 2,
+    file_size_bytes: int | None = None,
+    format_bit_rate: int | None = None,
+    video_bit_rate: int | None = None,
+    audio_bit_rate: int | None = 128_000,
 ) -> VideoInfo:
     return VideoInfo(
         path=path,
@@ -48,6 +52,10 @@ def video_info(
         has_audio=has_audio,
         audio_sample_rate=audio_sample_rate if has_audio else None,
         audio_channels=audio_channels if has_audio else None,
+        file_size_bytes=file_size_bytes,
+        format_bit_rate=format_bit_rate,
+        video_bit_rate=video_bit_rate,
+        audio_bit_rate=audio_bit_rate if has_audio else None,
     )
 
 

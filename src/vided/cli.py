@@ -14,7 +14,9 @@ from cyclopts import App, Parameter
 from ._version import get_version
 from .audio_presets import list_audio_presets
 from .audio_preview import render_audio_preview
+from .compression import format_compression_decision, format_compression_result
 from .contact_sheet import render_contact_sheet
+from .encoding import format_sample_estimate
 from .errors import VidedError
 from .ffmpeg import ToolError, ensure_tool
 from .project import create_project, project_paths
@@ -30,7 +32,9 @@ SpeedIndicatorStyle = Literal["dark", "light"]
 AudioPreset = Literal["none", "level", "voice-safe"]
 AgentName = Literal["codex", "claude"]
 ContactSheetSource = Literal["preview", "final"]
-RenderMode = Literal["auto", "trimmed", "one-pass"]
+RenderSource = Literal["auto", "trimmed", "original"]
+CompressionMode = Literal["off", "smart"]
+CompressionPriority = Literal["compatibility", "size"]
 
 StoreTrue = Parameter(negative=())
 
@@ -157,6 +161,28 @@ def trim(
     /,
     *,
     options: TrimCliOptions | None = None,
+    compress: CompressionMode = "off",
+    compression_priority: Annotated[
+        CompressionPriority,
+        Parameter(help="Smart compression bias. compatibility keeps H.264; size may use H.265."),
+    ] = "compatibility",
+    max_fps: Annotated[
+        float | None,
+        Parameter(help="Smart compression FPS cap. Defaults to 30 when compression is smart."),
+    ] = None,
+    sample_duration: Annotated[
+        float | None,
+        Parameter(help="Render a short sample instead of writing work/trimmed.mp4."),
+    ] = None,
+    sample_output: Annotated[
+        Path | None,
+        Parameter(help="Sample output path. Defaults to output/trim-sample-LABEL.mp4."),
+    ] = None,
+    allow_larger: Annotated[
+        bool,
+        StoreTrue,
+        Parameter(help="Keep compressed output even if it is larger than the source."),
+    ] = False,
     final: Annotated[
         bool,
         StoreTrue,
@@ -169,13 +195,41 @@ def trim(
     overwrite: Annotated[bool, StoreTrue] = False,
     dry_run: Annotated[bool, StoreTrue] = False,
 ) -> int:
+    if sample_duration is not None and (final or final_output is not None):
+        raise ValueError("--sample-duration cannot be combined with --final or --final-output")
+
     plan = plan_trim(
         project,
         options=_trim_options_from_cli(options),
         allow_vad_detection=not dry_run,
+        compress=compress,
+        compression_priority=compression_priority,
+        max_fps=max_fps,
     )
-    result = run_trim_plan(plan, overwrite=overwrite, dry_run=dry_run)
+    result = run_trim_plan(
+        plan,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        allow_larger=allow_larger,
+        sample_duration=sample_duration,
+        sample_output=sample_output,
+    )
+    if result.sample is not None:
+        compression = getattr(result, "compression", None)
+        if compression is not None:
+            print(format_compression_decision(compression))
+        print(f"Trim sample: {result.path}")
+        print(format_sample_estimate(result.sample))
+        return 0
+
+    compression = getattr(result, "compression", None)
+    if compression is not None:
+        print(format_compression_decision(compression))
     print(f"Trimmed video: {result.path}")
+    if compression is not None:
+        result_summary = format_compression_result(result.path, compression)
+        if result_summary is not None:
+            print(result_summary)
     if final or final_output is not None:
         output = copy_trimmed_to_final(
             project,
@@ -229,20 +283,62 @@ def render(
     /,
     *,
     audio_preset: AudioPreset | None = None,
-    render_mode: RenderMode = "auto",
+    render_source: RenderSource = "auto",
+    compress: CompressionMode = "off",
+    compression_priority: Annotated[
+        CompressionPriority,
+        Parameter(help="Smart compression bias. compatibility keeps H.264; size may use H.265."),
+    ] = "compatibility",
+    max_fps: Annotated[
+        float | None,
+        Parameter(help="Smart compression FPS cap. Defaults to 30 when compression is smart."),
+    ] = None,
+    sample_duration: Annotated[
+        float | None,
+        Parameter(help="Render a short sample instead of writing the final video."),
+    ] = None,
+    sample_output: Annotated[
+        Path | None,
+        Parameter(help="Sample output path. Defaults to output/final-sample-LABEL.mp4."),
+    ] = None,
+    allow_larger: Annotated[
+        bool,
+        StoreTrue,
+        Parameter(help="Keep compressed output even if it is larger than the source."),
+    ] = False,
     output: Path | None = None,
     overwrite: Annotated[bool, StoreTrue] = False,
     dry_run: Annotated[bool, StoreTrue] = False,
 ) -> int:
-    rendered = render_project(
+    result = render_project(
         project,
         output=output,
         audio_preset=audio_preset,
-        render_mode=render_mode,
+        render_source=render_source,
+        compress=compress,
+        compression_priority=compression_priority,
+        max_fps=max_fps,
+        sample_duration=sample_duration,
+        sample_output=sample_output,
+        allow_larger=allow_larger,
         overwrite=overwrite,
         dry_run=dry_run,
     )
-    print(f"Rendered video: {rendered}")
+    if result.sample is not None:
+        compression = getattr(result, "compression", None)
+        if compression is not None:
+            print(format_compression_decision(compression))
+        print(f"Render sample: {result.path}")
+        print(format_sample_estimate(result.sample))
+    else:
+        compression = getattr(result, "compression", None)
+        if compression is not None:
+            print(format_compression_decision(compression))
+        print(f"Rendered video: {result.path}")
+        if compression is not None:
+            result_summary = format_compression_result(result.path, compression)
+            if result_summary is not None:
+                print(result_summary)
     return 0
 
 
@@ -295,7 +391,7 @@ def audio_preview(
     overwrite: Annotated[bool, StoreTrue] = False,
     dry_run: Annotated[bool, StoreTrue] = False,
 ) -> int:
-    rendered = render_audio_preview(
+    result = render_audio_preview(
         project,
         audio_preset=audio_preset,
         start=start,
@@ -304,7 +400,7 @@ def audio_preview(
         overwrite=overwrite,
         dry_run=dry_run,
     )
-    print(f"Audio preview: {rendered}")
+    print(f"Audio preview: {result.path}")
     return 0
 
 

@@ -54,8 +54,8 @@ def test_audio_presets_and_preview_smoke_with_ffmpeg(
     cfg["trim_timeline"] = build_trim_timeline([TrimSegment(start=0.0, end=3.0)])
     save_project(project, cfg)
 
-    preview = render_audio_preview(project, audio_preset="level", overwrite=True)
-    final = render_project(project, audio_preset="voice-safe", overwrite=True)
+    preview = render_audio_preview(project, audio_preset="level", overwrite=True).path
+    final = render_project(project, audio_preset="voice-safe", overwrite=True).path
 
     assert probe_media(preview).has_audio
     assert probe_media(final).has_audio
@@ -88,13 +88,13 @@ def test_realistic_fixture_audio_preview_and_render_all_presets(
             audio_preset=preset.name,
             output=Path(f"output/audio-preview-{preset.name}.mp4"),
             overwrite=True,
-        )
+        ).path
         final = render_project(
             project,
             audio_preset=preset.name,
             output=Path(f"output/final-{preset.name}.mp4"),
             overwrite=True,
-        )
+        ).path
 
         preview_info = probe_media(preview)
         final_info = probe_media(final)

@@ -115,6 +115,12 @@ needed; otherwise it renders from `work/trimmed.mp4`:
 uvx vided render my-video --overwrite
 ```
 
+For smaller screen recordings, make smart compression part of the final render:
+
+```bash
+uvx vided render my-video --compress smart --overwrite
+```
+
 Optional: render a contact sheet from the final video:
 
 ```bash
@@ -151,6 +157,28 @@ Render with an audio preset:
 uvx vided render my-video --audio-preset voice-safe --overwrite
 ```
 
+Render a smaller screen-recording output with smart compression:
+
+```bash
+uvx vided render my-video --compress smart --overwrite
+```
+
+Smart compression preserves native resolution for readable UI text, caps high
+frame-rate recordings to 30fps by default, keeps H.264 for compatibility, and
+uses source-aware audio bitrate settings so audio is not made larger. It samples
+candidate encodes automatically before committing to the full render.
+
+```bash
+uvx vided render my-video --compress smart --compression-priority size --overwrite
+```
+
+Use `--compression-priority size` when smaller modern-playback files are more
+important than H.264 compatibility. Smart compressed outputs are guarded by
+default: if the encoded file would be larger than the source artifact it was
+rendered from, Vided removes it and reports the size comparison. Use
+`--allow-larger` only when you intentionally want a larger quality-focused
+output.
+
 Render a contact sheet preview:
 
 ```bash
@@ -159,11 +187,12 @@ uvx vided contact-sheet my-video --overwrite
 
 ## Advanced Flags
 
-One-pass rendering from the original video is available for benchmarking and
-experimentation:
+Render from the original input and trim timeline instead of `work/trimmed.mp4`.
+This is useful when `work/trimmed.mp4` was encoded as a small review artifact
+but the final output should be based on the original source:
 
 ```bash
-uvx vided render my-video --render-mode one-pass --overwrite
+uvx vided render my-video --render-source original --compress smart --overwrite
 ```
 
 If you only need automatic trimming and want `trim` to write `output/final.mp4`
@@ -172,6 +201,27 @@ directly, use `--final`:
 ```bash
 uvx vided trim my-video --detector vad --final --overwrite
 ```
+
+Use a smaller trim artifact for review:
+
+```bash
+uvx vided trim my-video --detector vad --compress smart --overwrite
+```
+
+Use `--max-fps 24` when a smaller review artifact matters more than motion
+smoothness.
+
+## Smart Compression
+
+`--compress smart` is the recommended compression workflow for screen recordings.
+It keeps the original resolution by default because downscaling is the fastest
+way to make UI text fuzzy. You normally do not need `--sample-duration` with
+smart compression because smart mode samples candidates automatically.
+
+H.264 is the default for compatibility. Use `--compression-priority size` when a
+smaller file matters more than broad playback support; this allows modern-codec
+candidates such as H.265. Use `--max-fps` only when you want to override the
+default 30fps cap.
 
 ## Audio Presets
 
