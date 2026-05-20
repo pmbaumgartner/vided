@@ -4,6 +4,7 @@ from pathlib import Path
 import struct
 
 from PIL import Image
+import pytest
 
 from helpers import (
     BasicProject,
@@ -14,8 +15,10 @@ from helpers import (
     video_info,
     write_basic_project,
 )
+from vided.errors import ValidationError
 from vided import trimmer
 from vided.project import default_project_config, read_json
+from vided.trim_timeline import parse_trim_timeline_segments
 
 
 def test_default_project_config_uses_hybrid_trim_mode() -> None:
@@ -82,6 +85,35 @@ def test_build_trim_timeline_maps_source_segments_to_trimmed_output() -> None:
             },
         ],
     }
+
+
+def test_parse_trim_timeline_returns_typed_segments_for_preview_and_render() -> None:
+    timeline = trimmer.build_trim_timeline(
+        [
+            trimmer.TrimSegment(start=0.0, end=4.0),
+            trimmer.TrimSegment(start=5.0, end=13.0, speed=8.0, mute_audio=True),
+        ]
+    )
+
+    segments = parse_trim_timeline_segments(timeline["segments"])
+
+    assert segments[0].output_duration == 4.0
+    assert segments[1].output_start == 4.0
+    assert segments[1].output_duration == 1.0
+    assert segments[1].to_trim_segment() == trimmer.TrimSegment(
+        start=5.0,
+        end=13.0,
+        speed=8.0,
+        mute_audio=True,
+    )
+
+
+def test_parse_trim_timeline_rejects_invalid_entries() -> None:
+    timeline = trimmer.build_trim_timeline([trimmer.TrimSegment(start=0.0, end=4.0)])
+    timeline["segments"][0]["output_end"] = 8.0
+
+    with pytest.raises(ValidationError, match="output duration"):
+        parse_trim_timeline_segments(timeline["segments"])
 
 
 def test_speed_indicator_badge_generates_rgba_png(tmp_path) -> None:

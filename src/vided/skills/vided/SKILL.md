@@ -142,7 +142,8 @@ uvx vided contact-sheet project-dir --source final --final-video output/custom-f
 ```
 
 Preview a small audio preset before rendering. Without `--start`, vided chooses the longest
-normal-speed unmuted segment from the trim timeline and previews up to 15 seconds:
+normal-speed unmuted segment from the trim timeline and previews up to 15 seconds. If timeline
+metadata is missing or stale, audio preview rebuilds it from the current trim plan:
 
 ```bash
 uvx vided audio-preview project-dir --audio-preset voice-safe --overwrite

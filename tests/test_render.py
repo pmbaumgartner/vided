@@ -107,6 +107,11 @@ def test_render_original_source_uses_original_when_trim_timeline_is_available(
     assert str(project / "input" / "original.mp4") in cmd
     assert str(project / "work" / "trimmed.mp4") not in cmd
     assert "[0:v]trim=start=0:end=4" in graph
+    assert "[0:v]trim=start=5:end=13,setpts=(PTS-STARTPTS)/8[v1]" in graph
+    assert (
+        "[0:a]atrim=start=5:end=13,asetpts=PTS-STARTPTS,atempo=2,atempo=2,atempo=2,volume=0[a1]"
+        in graph
+    )
     assert "concat=n=2:v=1:a=1[trimv][trima]" in graph
     assert "[trimv]setpts=PTS-STARTPTS[base0]" in graph
     assert "[vout]" in cmd
@@ -183,6 +188,33 @@ def test_render_original_source_fails_without_trim_timeline(tmp_path) -> None:
         assert "trim_timeline" in str(exc)
     else:
         raise AssertionError("original-source render should require trim_timeline")
+
+
+def test_render_original_source_rejects_invalid_trim_timeline(tmp_path) -> None:
+    project = basic_project_at(tmp_path / "project").root
+    cfg = read_json(project / "project.json")
+    cfg["trim_timeline"] = {
+        "schema_version": 1,
+        "segments": [
+            {
+                "source_start": 0.0,
+                "source_end": 10.0,
+                "output_start": 0.0,
+                "output_end": 99.0,
+                "speed": 1.0,
+                "mute_audio": False,
+            }
+        ],
+    }
+    write_json(project / "project.json", cfg)
+
+    try:
+        render_project(project, render_source="original", dry_run=True)
+    except ValidationError as exc:
+        assert "trim_timeline is invalid" in str(exc)
+        assert "output duration" in str(exc)
+    else:
+        raise AssertionError("original-source render should reject invalid trim_timeline")
 
 
 def test_render_smart_compression_caps_high_fps(tmp_path, monkeypatch) -> None:

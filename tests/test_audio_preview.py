@@ -37,6 +37,12 @@ def _write_trim_timeline(project: Path, segments: list[TrimSegment]) -> None:
     write_json(project / "project.json", cfg)
 
 
+def _write_raw_trim_timeline(project: Path, segments: list[dict[str, Any]]) -> None:
+    cfg = read_json(project / "project.json")
+    cfg["trim_timeline"] = {"schema_version": 1, "segments": segments}
+    write_json(project / "project.json", cfg)
+
+
 def test_audio_preview_defaults_to_longest_normal_unmuted_segment_start(
     tmp_path, monkeypatch
 ) -> None:
@@ -121,6 +127,40 @@ def test_audio_preview_falls_back_when_no_normal_unmuted_segment(
 
 def test_audio_preview_reconstructs_missing_timeline_from_trim_plan(tmp_path, monkeypatch) -> None:
     project = _project_with_trimmed_video(tmp_path, monkeypatch, duration=20.0)
+    calls = _capture_audio_preview_command(monkeypatch)
+    monkeypatch.setattr(
+        audio_preview,
+        "plan_trim",
+        lambda *args, **kwargs: type(
+            "Plan",
+            (),
+            {"segments": [TrimSegment(start=0.0, end=3.0), TrimSegment(start=10.0, end=18.0)]},
+        )(),
+    )
+
+    result = audio_preview.render_audio_preview(project, audio_preset="level", dry_run=True)
+
+    cmd = result.command
+    assert cmd == calls["cmd"]
+    assert cmd[cmd.index("-ss") + 1] == "3"
+    assert cmd[cmd.index("-t") + 1] == "8"
+
+
+def test_audio_preview_reconstructs_invalid_timeline_from_trim_plan(tmp_path, monkeypatch) -> None:
+    project = _project_with_trimmed_video(tmp_path, monkeypatch, duration=20.0)
+    _write_raw_trim_timeline(
+        project,
+        [
+            {
+                "source_start": 0.0,
+                "source_end": 10.0,
+                "output_start": 0.0,
+                "output_end": 99.0,
+                "speed": 1.0,
+                "mute_audio": False,
+            }
+        ],
+    )
     calls = _capture_audio_preview_command(monkeypatch)
     monkeypatch.setattr(
         audio_preview,

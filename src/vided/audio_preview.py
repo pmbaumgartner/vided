@@ -19,23 +19,10 @@ from .ffmpeg import (
     run_command,
 )
 from .project import load_project, project_paths
+from .trim_timeline import TrimTimelineSegment, parse_trim_timeline_segments
 from .trimmer import build_trim_timeline, plan_trim
 
 DEFAULT_PREVIEW_DURATION = 15.0
-
-
-@dataclass(frozen=True)
-class TimelineSegment:
-    source_start: float
-    source_end: float
-    output_start: float
-    output_end: float
-    speed: float
-    mute_audio: bool
-
-    @property
-    def output_duration(self) -> float:
-        return max(0.0, self.output_end - self.output_start)
 
 
 @dataclass(frozen=True)
@@ -177,7 +164,7 @@ def select_audio_preview_window(
     )
 
 
-def _longest_preview_segment(project_root: Path, cfg: dict[str, Any]) -> TimelineSegment | None:
+def _longest_preview_segment(project_root: Path, cfg: dict[str, Any]) -> TrimTimelineSegment | None:
     candidates = [
         item
         for item in _trim_timeline_segments(project_root, cfg)
@@ -188,12 +175,13 @@ def _longest_preview_segment(project_root: Path, cfg: dict[str, Any]) -> Timelin
     return max(candidates, key=lambda item: (item.output_duration, -item.output_start))
 
 
-def _trim_timeline_segments(project_root: Path, cfg: dict[str, Any]) -> list[TimelineSegment]:
+def _trim_timeline_segments(project_root: Path, cfg: dict[str, Any]) -> list[TrimTimelineSegment]:
     timeline = cfg.get("trim_timeline")
     if isinstance(timeline, dict):
-        segments = _parse_timeline_segments(timeline.get("segments", []))
-        if segments:
-            return segments
+        try:
+            return parse_trim_timeline_segments(timeline.get("segments"))
+        except ValidationError:
+            pass
 
     try:
         plan = plan_trim(project_root, allow_vad_detection=False)
@@ -201,31 +189,7 @@ def _trim_timeline_segments(project_root: Path, cfg: dict[str, Any]) -> list[Tim
         raise ProjectError(
             f"Trim timeline metadata not found or stale. Run `vided trim {project_root}` first."
         ) from exc
-    return _parse_timeline_segments(build_trim_timeline(plan.segments)["segments"])
-
-
-def _parse_timeline_segments(raw: Any) -> list[TimelineSegment]:
-    if not isinstance(raw, list):
-        return []
-
-    segments: list[TimelineSegment] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        try:
-            segment = TimelineSegment(
-                source_start=float(item["source_start"]),
-                source_end=float(item["source_end"]),
-                output_start=float(item["output_start"]),
-                output_end=float(item["output_end"]),
-                speed=float(item.get("speed", 1.0)),
-                mute_audio=bool(item.get("mute_audio", False)),
-            )
-        except (KeyError, TypeError, ValueError):
-            continue
-        if segment.output_end > segment.output_start:
-            segments.append(segment)
-    return segments
+    return parse_trim_timeline_segments(build_trim_timeline(plan.segments)["segments"])
 
 
 def _preview_duration(value: float | None) -> float:

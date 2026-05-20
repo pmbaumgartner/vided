@@ -41,6 +41,7 @@ from .ffmpeg import (
 from .filtergraph import build_final_filtergraph, write_filtergraph
 from .project import load_project, project_paths
 from .redactions import Redaction, load_redactions, render_redactions
+from .trim_timeline import parse_trim_timeline_segments, timeline_segments_to_trim_segments
 from .trimmer import TrimSegment, build_trim_filtergraph
 
 RenderSource = Literal["auto", "trimmed", "original"]
@@ -432,28 +433,12 @@ def _one_pass_segments(cfg: dict[str, Any], original: Path) -> tuple[list[TrimSe
     timeline = cfg.get("trim_timeline")
     if not isinstance(timeline, dict):
         return [], "project is missing trim_timeline; run `vided trim` first"
-    raw_segments = timeline.get("segments")
-    if not isinstance(raw_segments, list) or not raw_segments:
-        return [], "trim_timeline has no segments; rerun `vided trim`"
-
-    segments: list[TrimSegment] = []
     try:
-        for item in raw_segments:
-            if not isinstance(item, dict):
-                raise ValueError("segment is not an object")
-            start = float(item["source_start"])
-            end = float(item["source_end"])
-            speed = float(item.get("speed", 1.0))
-            mute_audio = bool(item.get("mute_audio", False))
-            if end <= start:
-                raise ValueError("segment end must be after start")
-            if speed <= 0:
-                raise ValueError("segment speed must be greater than zero")
-            segments.append(TrimSegment(start=start, end=end, speed=speed, mute_audio=mute_audio))
-    except (KeyError, TypeError, ValueError) as exc:
+        timeline_segments = parse_trim_timeline_segments(timeline.get("segments"))
+    except ValidationError as exc:
         return [], f"trim_timeline is invalid: {exc}"
 
-    return segments, None
+    return timeline_segments_to_trim_segments(timeline_segments), None
 
 
 def _trim_speed_indicator_enabled(cfg: dict[str, Any]) -> bool:
