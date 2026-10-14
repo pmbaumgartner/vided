@@ -59,7 +59,14 @@ def ensure_tool(name: str) -> str:
 
 
 def ffmpeg_base_args(*, overwrite: bool) -> list[str]:
-    return ["ffmpeg", "-hide_banner", "-y" if overwrite else "-n"]
+    return [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "warning",
+        "-nostats",
+        "-y" if overwrite else "-n",
+    ]
 
 
 def ffmpeg_input_args(path: Path) -> list[str]:

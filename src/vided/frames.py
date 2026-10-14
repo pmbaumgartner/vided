@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from .ffmpeg import ensure_tool, probe_media, run_command
+from .ffmpeg import ensure_tool, ffmpeg_base_args, probe_media, run_command
 from .project import load_project, project_paths, save_project, write_json
 
 
@@ -49,9 +49,7 @@ def build_frame_extraction_command(
     fps = 1.0 / options.interval_seconds
     vf = f"fps={fps:.8f},scale={options.thumbnail_width}:-2"
     return [
-        "ffmpeg",
-        "-hide_banner",
-        "-y" if overwrite else "-n",
+        *ffmpeg_base_args(overwrite=overwrite),
         "-i",
         str(source),
         "-vf",

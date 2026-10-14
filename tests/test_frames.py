@@ -47,6 +47,9 @@ def test_build_frame_extraction_command_preserves_ffmpeg_filter_shape() -> None:
     assert cmd == [
         "ffmpeg",
         "-hide_banner",
+        "-loglevel",
+        "warning",
+        "-nostats",
         "-n",
         "-i",
         "input.mp4",
@@ -62,6 +65,6 @@ def test_build_frame_extraction_command_preserves_ffmpeg_filter_shape() -> None:
             Path("frames/frame_%06d.jpg"),
             options=FrameExtractionOptions(interval_seconds=1.0, thumbnail_width=640),
             overwrite=True,
-        )[2]
+        )[5]
         == "-y"
     )

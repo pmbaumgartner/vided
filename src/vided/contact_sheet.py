@@ -7,7 +7,7 @@ from typing import Literal
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from .ffmpeg import ensure_tool, probe_media, run_command
+from .ffmpeg import ensure_tool, ffmpeg_base_args, probe_media, run_command
 from .frames import FrameExtractionOptions, resolve_frame_extraction_options
 from .image_badge import DARK_BADGE_STYLE, render_text_badge
 from .project import load_project, project_paths
@@ -125,9 +125,7 @@ def _build_contact_sheet_frame_command(
 ) -> list[str]:
     # Seek each tile by timestamp so labels, borders, and pixels describe the same instant.
     return [
-        "ffmpeg",
-        "-hide_banner",
-        "-y",
+        *ffmpeg_base_args(overwrite=True),
         "-ss",
         f"{timestamp:.6f}",
         "-i",

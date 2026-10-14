@@ -170,6 +170,8 @@ uvx vided doctor
 
 - Prefer the README and `uvx vided <command> --help` over guessing flags or file layout.
 - Treat Vided as a CLI tool, not as a Python library dependency.
+- FFmpeg media commands show warnings and errors only; routine encoding logs and progress
+  statistics are suppressed.
 - Do not edit generated media by hand. Use vided commands to create projects, trim, review, and
   render.
 - Preserve the project directory as the source of truth: input media, work files, redaction JSON,

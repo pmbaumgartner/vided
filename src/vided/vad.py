@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .errors import ProjectError, ValidationError
-from .ffmpeg import VideoInfo, ensure_tool, probe_media, run_command
+from .ffmpeg import VideoInfo, ensure_tool, ffmpeg_base_args, probe_media, run_command
 from .project import load_project, project_paths, read_json, write_json
 from .time_ranges import (
     TimeRange,
@@ -119,9 +119,7 @@ def vad_settings_from_trim_config(
 
 def build_vad_audio_command(source: Path, output: Path) -> list[str]:
     return [
-        "ffmpeg",
-        "-hide_banner",
-        "-y",
+        *ffmpeg_base_args(overwrite=True),
         "-i",
         str(source),
         "-map",
